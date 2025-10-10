@@ -21,7 +21,7 @@ import simpy
 from pm4py.objects.petri_net import semantics
 from pm4py.util import xes_constants
 
-from core.models import ProcessModel, SimulationConfig, SimulationResult
+from models import ProcessModel, SimulationConfig, SimulationResult
 
 
 class ActivityExecutor:

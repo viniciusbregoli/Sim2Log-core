@@ -28,8 +28,8 @@ import scipy.stats
 import pm4py
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
-from core.models import ActivityStatistics, ProcessModel
-from core.log_analyzer import LogAnalyzer, LogProfile
+from models import ActivityStatistics, ProcessModel
+from log_analyzer import LogAnalyzer, LogProfile
 
 
 class DistributionFitter:

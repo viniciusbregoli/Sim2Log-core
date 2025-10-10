@@ -13,7 +13,7 @@ from typing import Dict
 from pm4py.algo.conformance.alignments.edit_distance import algorithm as logs_alignments
 from pm4py.objects.log.importer.xes import importer as xes_importer
 
-from core.models import ValidationResult
+from models import ValidationResult
 
 
 class LogValidator:

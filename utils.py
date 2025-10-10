@@ -87,7 +87,7 @@ def summarize_model(model) -> Dict[str, any]:
     Returns:
         Dicionário com informações resumidas
     """
-    from core.models import ProcessModel
+    from models import ProcessModel
     
     if not isinstance(model, ProcessModel):
         raise TypeError("model deve ser uma instância de ProcessModel")
