@@ -1,6 +1,5 @@
 # Python
 __pycache__/
-.python-version
 *.py[cod]
 *$py.class
 *.so
@@ -8,13 +7,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-
-# Output files
+bases/
 output/
-output_*/
-*.xes
-*.csv
-*.png
 
 # IDE
 .vscode/
@@ -22,11 +16,3 @@ output_*/
 *.swp
 *.swo
 *~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Jupyter
-.ipynb_checkpoints/
-
