@@ -165,7 +165,14 @@ class ProcessMiner:
             self._log(f"Salvando imagem do modelo em {save_model_image}...")
             save_model_image.parent.mkdir(parents=True, exist_ok=True)
             from pm4py.visualization.petri_net import visualizer as pn_visualizer
-            gviz = pn_visualizer.apply(net, im, fm)
+            
+            # Configurações de visualização com fundo branco
+            parameters = {
+                pn_visualizer.Variants.WO_DECORATION.value.Parameters.FORMAT: "png",
+                pn_visualizer.Variants.WO_DECORATION.value.Parameters.BGCOLOR: "white"
+            }
+            
+            gviz = pn_visualizer.apply(net, im, fm, parameters=parameters)
             pn_visualizer.save(gviz, str(save_model_image))
         
         # Avalia qualidade do modelo
@@ -197,11 +204,11 @@ class ProcessMiner:
             num_variants=num_variants,
             quality_metrics=quality,
             resources=resources,
-            log_profile=log_profile,
-            domain=log_profile.suggested_domain if log_profile else None
+            log_profile=log_profile
         )
         
-        self._log("✓ Mineração concluída!")
+        self._log("Mineração concluída com sucesso.")
+        self._log(f"Modelo extraído com {len(activities)} atividades e fitness de {quality.get('fitness', 0):.3f}")
         return model
     
     def _evaluate_model(self, log, net, im, fm) -> Dict[str, float]:

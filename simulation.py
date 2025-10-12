@@ -142,9 +142,9 @@ class LogSimulator:
         num_cases = len(set(event[0] for event in self._events if event[1] != "case end"))
         num_events = len([e for e in self._events if e[1] != "case end"])
         
-        self._log(f"✓ Simulação concluída em {simulation_time:.2f}s")
-        self._log(f"  Casos gerados: {num_cases}")
-        self._log(f"  Eventos gerados: {num_events}")
+        self._log(f"Simulação concluída com sucesso em {simulation_time:.2f} segundos")
+        self._log(f"Total de casos gerados na simulação: {num_cases}")
+        self._log(f"Total de eventos gerados na simulação: {num_events}")
         
         return SimulationResult(
             csv_path=csv_path,

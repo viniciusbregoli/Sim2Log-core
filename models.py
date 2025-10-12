@@ -82,9 +82,6 @@ class ProcessModel:
     
     log_profile: Optional[object] = None
     """Perfil do log original (LogProfile)."""
-    
-    domain: Optional[str] = None
-    """Domínio detectado do processo."""
 
 
 @dataclass

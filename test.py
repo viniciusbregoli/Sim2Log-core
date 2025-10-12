@@ -1,11 +1,16 @@
 """
-Simple test file for Sim2Log Core.
+Arquivo de teste para Sim2Log Core.
 
-Generates synthetic event logs from a real XES file.
+Este script executa o fluxo completo de mineração, simulação e validação de logs de eventos.
+A partir de um arquivo XES real, o script irá:
+  1. Minerar o modelo de processo usando algoritmo de descoberta
+  2. Simular novos casos sintéticos baseados no modelo descoberto
+  3. Validar a qualidade do log sintético comparando com o log original
 
-Usage:
-    python test.py <xes_file>
+Uso:
+    python test.py <arquivo_xes>
     python test.py bases/running-example.xes
+    python test.py bases/running-example.xes --num-cases 100
 """
 
 import argparse
@@ -19,36 +24,48 @@ from models import SimulationConfig
 
 
 def show_image(image_path):
+    """
+    Tenta abrir a imagem do modelo de processo usando o visualizador padrão do sistema.
+    
+    Args:
+        image_path: Caminho para o arquivo de imagem a ser aberto
+    """
     try:
         subprocess.run(["xdg-open", str(image_path)], check=False)
-        print(f"  Opening image viewer for {image_path}")
+        print(f"  Abrindo visualizador de imagens para: {image_path}")
     except Exception as e:
-        print(f"  Could not auto-open image: {e}")
+        print(f"  Não foi possível abrir a imagem automaticamente: {e}")
 
 
 def test_basic_workflow(input_file, num_cases=50):
-    """Test the basic mine -> simulate -> validate workflow.
+    """
+    Executa o fluxo completo de trabalho: mineração -> simulação -> validação.
+    
+    Este teste realiza as três principais etapas do pipeline de process mining:
+    1. Mineração: Extrai o modelo de processo do log de eventos original
+    2. Simulação: Gera casos sintéticos baseados no modelo minerado
+    3. Validação: Compara o log sintético com o original para avaliar qualidade
     
     Args:
-        input_file: Path to XES file to process
-        num_cases: Number of synthetic cases to generate
+        input_file: Caminho para o arquivo XES a ser processado
+        num_cases: Número de casos sintéticos a serem gerados na simulação
     """
     input_file = Path(input_file)
     
     if not input_file.exists():
-        print(f"Error: {input_file} not found")
+        print(f"Erro: O arquivo {input_file} não foi encontrado no sistema")
         if Path("bases").exists():
-            print("\nAvailable files in bases/:")
+            print("\nArquivos XES disponíveis no diretório bases/:")
             for f in Path("bases").glob("*.xes"):
                 print(f"  - {f}")
         sys.exit(1)
     
     print("="*60)
-    print("MINERAÇÃO DE PROCESSOS")
+    print("ETAPA 1: MINERAÇÃO DE PROCESSOS")
     print("="*60)
     
-    # Step 1: Mine process
-    print("\n[1/3] Mining process model...")
+    print("\n[1/3] Iniciando mineração do modelo de processo...")
+    print("Analisando o log de eventos e descobrindo padrões de fluxo de trabalho...")
     model_image_path = Path("output/process-model.png")
     miner = ProcessMiner(verbose=True)
     model = miner.mine_process(
@@ -57,16 +74,15 @@ def test_basic_workflow(input_file, num_cases=50):
         save_model_image=model_image_path
     )
     
-    # Show the process model
-    print("\nDisplaying process model...")
+    print("\nMineração concluída. Exibindo modelo de processo visual...")
     show_image(model_image_path)
     
-    # Step 2: Simulate
     print("="*60)
-    print("SIMULAÇÃO DE PROCESSOS")
+    print("ETAPA 2: SIMULAÇÃO DE PROCESSOS")
     print("="*60)
     
-    print(f"\n[2/3] Simulating synthetic log ({num_cases} cases)...")
+    print(f"\n[2/3] Iniciando simulação de log sintético...")
+    print(f"Gerando {num_cases} casos sintéticos baseados no modelo minerado...")
     config = SimulationConfig(num_cases=num_cases, random_seed=42)
     simulator = LogSimulator(config, verbose=True)
     result = simulator.simulate(
@@ -74,54 +90,59 @@ def test_basic_workflow(input_file, num_cases=50):
         output_dir="output", 
         output_prefix="test-synthetic"
     )
+    print("Simulação concluída. Arquivos salvos no diretório output/")
     
-    # Step 3: Validate
     print("="*60)
-    print("VALIDAÇÃO DE PROCESSOS")
+    print("ETAPA 3: VALIDAÇÃO DE PROCESSOS")
     print("="*60)
     
-    print("\n[3/3] Validating quality...")
+    print("\n[3/3] Iniciando validação de qualidade do log sintético...")
+    print("Comparando o log sintético com o log original para avaliar similaridade...")
     validator = LogValidator(verbose=True)
     validation = validator.validate(input_file, result.xes_path)
     
-    # Results
     print("\n" + "="*60)
-    print("TEST RESULTS")
+    print("RESULTADOS DO TESTE")
     print("="*60)
-    print(f"✓ Cases: {result.num_cases_generated}")
-    print(f"✓ Events: {result.num_events_generated}")
-    print(f"✓ Similarity: {validation.similarity_percentage:.1f}%")
-    print(f"✓ Fitness: {validation.fitness:.3f}")
+    print(f"\nCasos gerados: {result.num_cases_generated}")
+    print(f"Eventos gerados: {result.num_events_generated}")
+    print(f"Similaridade com log original: {validation.similarity_percentage:.1f}%")
+    print(f"Fitness do modelo: {validation.fitness:.3f}")
     
+    print("\n" + "-"*60)
+    print("AVALIAÇÃO DE QUALIDADE")
+    print("-"*60)
     if validation.fitness >= 0.7:
-        print("\n✓ TEST PASSED - Good quality synthetic log generated!")
+        print("TESTE APROVADO: Log sintético de boa qualidade foi gerado com sucesso.")
+        print("O modelo minerado conseguiu replicar bem o comportamento do processo original.")
     else:
-        print("\n⚠ TEST WARNING - Low similarity, check parameters")
+        print("AVISO: Baixa similaridade detectada entre logs original e sintético.")
+        print("Considere ajustar os parâmetros de mineração ou aumentar o número de casos.")
     
     print("="*60)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate synthetic event logs from a real XES file",
+        description="Gera logs de eventos sintéticos a partir de um arquivo XES real",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+Exemplos de uso:
   python test.py bases/running-example.xes
-  python test.py bases/patient_treatment.xes
-  python test.py path/to/your/log.xes
+  python test.py bases/patient_treatment.xes --num-cases 100
+  python test.py caminho/para/seu/log.xes
         """
     )
     parser.add_argument(
         "xes_file",
         type=str,
-        help="Path to the input XES file"
+        help="Caminho para o arquivo XES de entrada"
     )
     parser.add_argument(
         "-n", "--num-cases",
         type=int,
         default=50,
-        help="Number of synthetic cases to generate (default: 50)"
+        help="Número de casos sintéticos a serem gerados (padrão: 50)"
     )
     
     args = parser.parse_args()

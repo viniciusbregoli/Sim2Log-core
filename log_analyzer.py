@@ -56,10 +56,6 @@ class LogProfile:
     # Variantes
     num_variants: int = 0
     most_common_variants: List[tuple] = field(default_factory=list)
-    
-    # Domínio detectado (opcional)
-    suggested_domain: Optional[str] = None
-    domain_confidence: float = 0.0
 
 
 class LogAnalyzer:
@@ -72,27 +68,9 @@ class LogAnalyzer:
     Example:
         >>> analyzer = LogAnalyzer()
         >>> profile = analyzer.analyze("any_log.xes")
-        >>> print(f"Domínio detectado: {profile.suggested_domain}")
         >>> print(f"Atividades: {profile.num_unique_activities}")
+        >>> print(f"Casos: {profile.num_traces}")
     """
-    
-    # Palavras-chave para detecção de domínio
-    DOMAIN_KEYWORDS = {
-        'healthcare': ['patient', 'doctor', 'nurse', 'exam', 'surgery', 'treatment', 
-                      'diagnosis', 'hospital', 'medical', 'clinic', 'medication'],
-        'finance': ['payment', 'transaction', 'invoice', 'credit', 'debit', 'loan',
-                   'account', 'transfer', 'approval', 'bank'],
-        'retail': ['order', 'purchase', 'product', 'customer', 'shipping', 'delivery',
-                  'cart', 'checkout', 'payment', 'return'],
-        'manufacturing': ['assembly', 'production', 'quality', 'inspection', 'machine',
-                         'defect', 'maintenance', 'material', 'warehouse'],
-        'insurance': ['claim', 'policy', 'premium', 'coverage', 'damage', 'assessment',
-                     'adjuster', 'settlement'],
-        'legal': ['case', 'court', 'hearing', 'verdict', 'filing', 'motion', 'appeal',
-                 'judgment', 'litigation'],
-        'it_service': ['incident', 'ticket', 'request', 'escalation', 'resolution',
-                      'service', 'support', 'user', 'system'],
-    }
     
     def __init__(self, verbose: bool = True):
         """
@@ -155,9 +133,6 @@ class LogAnalyzer:
         variant_counts = Counter(variants)
         most_common_variants = variant_counts.most_common(10)
         
-        # Detecta domínio
-        suggested_domain, confidence = self._detect_domain(activity_frequencies.keys())
-        
         profile = LogProfile(
             num_traces=len(log),
             num_events=sum(len(trace) for trace in log),
@@ -178,9 +153,7 @@ class LogAnalyzer:
             max_trace_length=max(trace_lengths) if trace_lengths else 0,
             avg_trace_length=sum(trace_lengths) / len(trace_lengths) if trace_lengths else 0,
             num_variants=len(variant_counts),
-            most_common_variants=most_common_variants,
-            suggested_domain=suggested_domain,
-            domain_confidence=confidence
+            most_common_variants=most_common_variants
         )
         
         self._print_profile(profile)
@@ -310,72 +283,39 @@ class LogAnalyzer:
         
         return None
     
-    def _detect_domain(self, activities: List[str]) -> tuple[Optional[str], float]:
-        """
-        Tenta detectar o domínio do log baseado nos nomes das atividades.
-        
-        Returns:
-            Tupla (domínio, confiança) onde confiança é 0-1
-        """
-        # Normaliza atividades para lowercase
-        normalized_activities = ' '.join(activities).lower()
-        
-        # Conta matches para cada domínio
-        domain_scores = {}
-        
-        for domain, keywords in self.DOMAIN_KEYWORDS.items():
-            matches = sum(1 for keyword in keywords if keyword in normalized_activities)
-            if matches > 0:
-                domain_scores[domain] = matches
-        
-        if not domain_scores:
-            return None, 0.0
-        
-        # Domínio com mais matches
-        best_domain = max(domain_scores, key=domain_scores.get)
-        confidence = min(domain_scores[best_domain] / 5, 1.0)  # Normaliza para 0-1
-        
-        self._log(f"  Domínio sugerido: {best_domain} (confiança: {confidence:.0%})")
-        
-        return best_domain, confidence
-    
     def _print_profile(self, profile: LogProfile):
         """Imprime resumo do perfil."""
         if not self.verbose:
             return
         
         print("\n" + "=" * 70)
-        print("PERFIL DO LOG")
+        print("PERFIL DO LOG DE EVENTOS")
         print("=" * 70)
         
-        print(f"\n📊 Estatísticas Básicas:")
-        print(f"  Casos (traces): {profile.num_traces}")
-        print(f"  Eventos totais: {profile.num_events}")
-        print(f"  Atividades únicas: {profile.num_unique_activities}")
-        print(f"  Variantes: {profile.num_variants}")
+        print(f"\nEstatísticas Básicas:")
+        print(f"  Número de casos (traces): {profile.num_traces}")
+        print(f"  Número total de eventos: {profile.num_events}")
+        print(f"  Número de atividades únicas: {profile.num_unique_activities}")
+        print(f"  Número de variantes do processo: {profile.num_variants}")
         
-        print(f"\n📏 Comprimento dos Traces:")
-        print(f"  Mínimo: {profile.min_trace_length} eventos")
-        print(f"  Máximo: {profile.max_trace_length} eventos")
-        print(f"  Média: {profile.avg_trace_length:.1f} eventos")
+        print(f"\nComprimento dos Traces:")
+        print(f"  Comprimento mínimo: {profile.min_trace_length} eventos")
+        print(f"  Comprimento máximo: {profile.max_trace_length} eventos")
+        print(f"  Comprimento médio: {profile.avg_trace_length:.1f} eventos")
         
-        print(f"\n🔑 Atributos Detectados:")
-        print(f"  Atividade: {profile.activity_key}")
-        print(f"  Timestamp: {profile.timestamp_key}")
-        print(f"  Case ID: {profile.case_id_key}")
-        print(f"  Recurso: {profile.resource_key or 'N/A'}")
-        print(f"  Complete timestamp: {profile.complete_timestamp_key or 'N/A'}")
+        print(f"\nAtributos Detectados Automaticamente:")
+        print(f"  Chave de atividade: {profile.activity_key}")
+        print(f"  Chave de timestamp: {profile.timestamp_key}")
+        print(f"  Chave de case ID: {profile.case_id_key}")
+        print(f"  Chave de recurso: {profile.resource_key or 'Não disponível'}")
+        print(f"  Chave de timestamp de conclusão: {profile.complete_timestamp_key or 'Não disponível'}")
         
-        print(f"\n✨ Características:")
-        print(f"  Tem recursos: {'✓' if profile.has_resources else '✗'}")
-        print(f"  Tem timestamps de conclusão: {'✓' if profile.has_complete_timestamps else '✗'}")
-        print(f"  Tem lifecycle: {'✓' if profile.has_lifecycle else '✗'}")
+        print(f"\nCaracterísticas do Log:")
+        print(f"  Possui informações de recursos: {'Sim' if profile.has_resources else 'Não'}")
+        print(f"  Possui timestamps de conclusão: {'Sim' if profile.has_complete_timestamps else 'Não'}")
+        print(f"  Possui informações de lifecycle: {'Sim' if profile.has_lifecycle else 'Não'}")
         
-        if profile.suggested_domain:
-            print(f"\n🏢 Domínio Sugerido:")
-            print(f"  {profile.suggested_domain.title()} ({profile.domain_confidence:.0%} confiança)")
-        
-        print(f"\n🔝 Top 5 Atividades:")
+        print(f"\nTop 5 Atividades Mais Frequentes:")
         top_activities = sorted(
             profile.activity_frequencies.items(),
             key=lambda x: x[1],
@@ -383,17 +323,17 @@ class LogAnalyzer:
         )[:5]
         for activity, count in top_activities:
             pct = (count / profile.num_events) * 100
-            print(f"  • {activity}: {count} ({pct:.1f}%)")
+            print(f"  - {activity}: {count} ocorrências ({pct:.1f}%)")
         
         if profile.has_resources:
-            print(f"\n👥 Top 5 Recursos:")
+            print(f"\nTop 5 Recursos Mais Ativos:")
             top_resources = sorted(
                 profile.resource_frequencies.items(),
                 key=lambda x: x[1],
                 reverse=True
             )[:5]
             for resource, count in top_resources:
-                print(f"  • {resource}: {count} eventos")
+                print(f"  - {resource}: {count} eventos executados")
         
         print()
     

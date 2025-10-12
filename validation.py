@@ -92,9 +92,9 @@ class LogValidator:
         avg_cost = round(total_cost / num_alignments, 2) if num_alignments > 0 else 0.0
         similarity = round(avg_fitness * 100, 2)
         
-        self._log(f"✓ Validação concluída")
-        self._log(f"  Fitness médio: {avg_fitness:.3f} ({similarity:.1f}%)")
-        self._log(f"  Custo médio: {avg_cost:.2f}")
+        self._log("Validação concluída com sucesso")
+        self._log(f"Fitness médio calculado: {avg_fitness:.3f} (similaridade de {similarity:.1f}%)")
+        self._log(f"Custo médio de alinhamento: {avg_cost:.2f}")
         
         details = {
             'num_alignments': num_alignments,
