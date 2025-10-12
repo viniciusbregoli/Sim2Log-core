@@ -48,6 +48,8 @@ def init_session_state():
         st.session_state.log_profile = None
     if 'model_image_path' not in st.session_state:
         st.session_state.model_image_path = None
+    if 'saved_simulations' not in st.session_state:
+        st.session_state.saved_simulations = []
 
 
 def save_uploaded_file(uploaded_file):
@@ -98,13 +100,23 @@ def run_mining(log_path, variant_filter):
         return model, model_image_path
 
 
-def run_simulation(model, num_cases, arrival_rate):
+def run_simulation(model, num_cases, arrival_rate, custom_resources=None):
     """Executa simulação de log."""
     with st.spinner(f"Simulando {num_cases} casos..."):
         output_dir = Path("app/outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Se há recursos customizados, cria uma cópia do modelo com os novos recursos
+        if custom_resources:
+            from copy import deepcopy
+            model_copy = deepcopy(model)
+            model_copy.resources = custom_resources
+            model_to_use = model_copy
+            st.info("Usando recursos customizados na simulação")
+        else:
+            model_to_use = model
         
         config = SimulationConfig(
             num_cases=num_cases,
@@ -114,7 +126,7 @@ def run_simulation(model, num_cases, arrival_rate):
         
         simulator = LogSimulator(config, verbose=False)
         result = simulator.simulate(
-            model,
+            model_to_use,
             output_dir=output_dir,
             output_prefix=f"simulated_{timestamp}"
         )
@@ -238,11 +250,11 @@ def display_mining_results(model, model_image_path):
             st.write(f"- **{activity}**: {stats.mean_duration:.2f}s (distribuição: {stats.distribution_name})")
 
 
-def display_simulation_results(result):
+def display_simulation_results(result, custom_resources=None, original_model=None):
     """Exibe resultados da simulação."""
     st.subheader("Resultados da Simulação")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Casos Gerados", result.num_cases_generated)
@@ -250,6 +262,45 @@ def display_simulation_results(result):
         st.metric("Eventos Gerados", result.num_events_generated)
     with col3:
         st.metric("Tempo de Simulação", f"{result.simulation_time:.2f}s")
+    with col4:
+        # Botão para salvar simulação para comparação
+        if st.button("💾 Salvar para Comparar", use_container_width=True):
+            import pandas as pd
+            df = pd.read_csv(result.csv_path)
+            
+            simulation_data = {
+                'name': f"Simulação {len(st.session_state.saved_simulations) + 1}",
+                'timestamp': result.timestamp.strftime("%H:%M:%S"),
+                'num_cases': result.num_cases_generated,
+                'num_events': result.num_events_generated,
+                'csv_path': result.csv_path,
+                'custom_resources': custom_resources,
+                'dataframe': df
+            }
+            st.session_state.saved_simulations.append(simulation_data)
+            st.success(f"Simulação salva! Total: {len(st.session_state.saved_simulations)}")
+    
+    # Exibe comparação de recursos se foram modificados
+    if custom_resources and original_model:
+        with st.expander("📊 Comparação de Recursos (Original vs Customizado)"):
+            changes_found = False
+            for activity in sorted(custom_resources.keys()):
+                original = original_model.resources.get(activity, [])
+                custom = custom_resources.get(activity, [])
+                
+                if set(original) != set(custom):
+                    changes_found = True
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**{activity}**")
+                        st.write(f"Original: {', '.join(original) if original else 'Nenhum'}")
+                    with col2:
+                        st.write("　")  # Espaço para alinhamento
+                        st.write(f"Customizado: {', '.join(custom) if custom else 'Nenhum'}")
+                    st.divider()
+            
+            if not changes_found:
+                st.info("Nenhuma alteração de recursos foi aplicada")
     
     # Visualização do CSV
     if result.csv_path.exists():
@@ -278,7 +329,21 @@ def display_simulation_results(result):
             activity_counts = df['activity'].value_counts()
             st.bar_chart(activity_counts)
             
-            st.write("**Casos por Ordem:**")
+            # Mostra recursos se a coluna existir
+            if 'resource' in df.columns:
+                st.write("**Recursos Utilizados:**")
+                resource_counts = df['resource'].value_counts()
+                st.bar_chart(resource_counts)
+                
+                st.write("**Distribuição de Recursos por Atividade:**")
+                for activity in df['activity'].unique():
+                    activity_df = df[df['activity'] == activity]
+                    if 'resource' in activity_df.columns:
+                        resources = activity_df['resource'].value_counts()
+                        if len(resources) > 0:
+                            st.write(f"- **{activity}**: {', '.join([f'{r} ({c}x)' for r, c in resources.items()])}")
+            
+            st.write("**Estatísticas de Casos:**")
             case_counts = df.groupby('case_id').size()
             st.write(f"- Média de eventos por caso: {case_counts.mean():.2f}")
             st.write(f"- Mínimo de eventos por caso: {case_counts.min()}")
@@ -416,6 +481,111 @@ def main():
                 step=0.5,
                 help="Intervalo entre chegadas de casos em minutos"
             )
+        
+        st.divider()
+        
+        # Configuração de recursos
+        st.header("Configuração de Recursos")
+        modify_resources = st.checkbox(
+            "Modificar recursos",
+            help="Permite alterar os recursos disponíveis para cada atividade"
+        )
+        
+        custom_resources = None
+        if modify_resources and st.session_state.model is not None:
+            st.write("**Configure os recursos por atividade:**")
+            st.caption("Marque/desmarque os recursos que deseja usar em cada atividade")
+            
+            custom_resources = {}
+            
+            # Coleta todos os recursos únicos do modelo
+            all_resources = set()
+            for resources_list in st.session_state.model.resources.values():
+                all_resources.update(resources_list)
+            all_resources = sorted(all_resources)
+            
+            for activity in sorted(st.session_state.model.activities.keys()):
+                with st.expander(f"📌 {activity}"):
+                    original_resources = st.session_state.model.resources.get(activity, [])
+                    
+                    # Mostra quantos recursos estão ativos
+                    st.caption(f"Original: {len(original_resources)} recurso(s)")
+                    
+                    selected_resources = []
+                    
+                    # Cria checkboxes para cada recurso
+                    if all_resources:
+                        st.write("**Recursos disponíveis:**")
+                        
+                        # Organiza em colunas para melhor layout
+                        num_cols = 2 if len(all_resources) > 4 else 1
+                        cols = st.columns(num_cols)
+                        
+                        for idx, resource in enumerate(all_resources):
+                            col = cols[idx % num_cols]
+                            with col:
+                                # Marca o checkbox se o recurso estava originalmente na atividade
+                                is_checked = resource in original_resources
+                                
+                                if st.checkbox(
+                                    resource,
+                                    value=is_checked,
+                                    key=f"resource_{activity}_{resource}"
+                                ):
+                                    selected_resources.append(resource)
+                    
+                    # Permite adicionar novos recursos
+                    st.write("**Adicionar novo recurso:**")
+                    new_resource = st.text_input(
+                        "Nome do recurso",
+                        key=f"new_resource_{activity}",
+                        placeholder="Digite o nome e pressione Enter",
+                        help="Adicione um recurso que não existe na lista"
+                    )
+                    
+                    if new_resource and new_resource.strip():
+                        new_resource_name = new_resource.strip()
+                        if st.checkbox(
+                            f"Adicionar '{new_resource_name}'",
+                            value=True,
+                            key=f"add_{activity}_{new_resource_name}"
+                        ):
+                            if new_resource_name not in selected_resources:
+                                selected_resources.append(new_resource_name)
+                    
+                    custom_resources[activity] = selected_resources
+                    
+                    # Mostra resumo da atividade
+                    if set(selected_resources) != set(original_resources):
+                        st.info(f"Mudança: {len(original_resources)} → {len(selected_resources)} recursos")
+            
+            # Resumo geral de mudanças
+            st.write("---")
+            st.write("**Resumo das alterações:**")
+            changes = 0
+            total_resources_original = 0
+            total_resources_new = 0
+            
+            for activity, new_res in custom_resources.items():
+                original = st.session_state.model.resources.get(activity, [])
+                total_resources_original += len(original)
+                total_resources_new += len(new_res)
+                
+                if set(new_res) != set(original):
+                    changes += 1
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Atividades modificadas", changes)
+            with col2:
+                st.metric("Recursos (Original)", total_resources_original)
+            with col3:
+                st.metric("Recursos (Novo)", total_resources_new)
+            
+            if changes > 0:
+                st.success(f"✓ {changes} atividade(s) com recursos modificados")
+            else:
+                st.info("Nenhuma alteração nos recursos")
     
     # Área principal
     if st.session_state.log_path is None:
@@ -454,8 +624,8 @@ def main():
             
             # 3. Simulação
             st.write("### Etapa 3: Simulação de Log")
-            result = run_simulation(model, num_cases, arrival_rate)
-            display_simulation_results(result)
+            result = run_simulation(model, num_cases, arrival_rate, custom_resources)
+            display_simulation_results(result, custom_resources, model)
             
             # 4. Validação
             st.write("### Etapa 4: Validação")
@@ -465,11 +635,12 @@ def main():
             st.success("Pipeline completo executado com sucesso!")
     
     else:  # Por Etapas
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "1. Análise",
             "2. Mineração",
             "3. Simulação",
-            "4. Validação"
+            "4. Validação",
+            "5. Comparação"
         ])
         
         with tab1:
@@ -501,11 +672,11 @@ def main():
                 st.warning("Execute a mineração primeiro antes de simular")
             else:
                 if st.button("Executar Simulação", type="primary"):
-                    result = run_simulation(st.session_state.model, num_cases, arrival_rate)
+                    result = run_simulation(st.session_state.model, num_cases, arrival_rate, custom_resources)
                     st.success("Simulação concluída!")
             
             if st.session_state.simulation_result:
-                display_simulation_results(st.session_state.simulation_result)
+                display_simulation_results(st.session_state.simulation_result, custom_resources, st.session_state.model)
             else:
                 if st.session_state.model:
                     st.info("Execute a simulação para ver os resultados")
@@ -528,6 +699,99 @@ def main():
             else:
                 if st.session_state.simulation_result:
                     st.info("Execute a validação para ver os resultados")
+        
+        with tab5:
+            st.header("Comparação de Simulações")
+            
+            if len(st.session_state.saved_simulations) == 0:
+                st.info("Nenhuma simulação salva para comparar. Execute simulações e clique em 'Salvar para Comparar'")
+            else:
+                st.write(f"**{len(st.session_state.saved_simulations)} simulação(ões) salva(s)**")
+                
+                # Botão para limpar simulações salvas
+                if st.button("🗑️ Limpar Todas as Simulações Salvas"):
+                    st.session_state.saved_simulations = []
+                    st.rerun()
+                
+                # Comparação de métricas
+                st.write("### Comparação de Métricas")
+                
+                comparison_data = []
+                for sim in st.session_state.saved_simulations:
+                    df = sim['dataframe']
+                    
+                    # Calcula estatísticas
+                    num_resources_used = df['resource'].nunique() if 'resource' in df.columns else 0
+                    avg_events_per_case = df.groupby('case_id').size().mean()
+                    
+                    comparison_data.append({
+                        'Nome': sim['name'],
+                        'Hora': sim['timestamp'],
+                        'Casos': sim['num_cases'],
+                        'Eventos': sim['num_events'],
+                        'Eventos/Caso': f"{avg_events_per_case:.1f}",
+                        'Recursos Usados': num_resources_used
+                    })
+                
+                import pandas as pd
+                comparison_df = pd.DataFrame(comparison_data)
+                st.dataframe(comparison_df, use_container_width=True)
+                
+                # Gráficos comparativos
+                st.write("### Gráficos Comparativos")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Número de Eventos por Simulação**")
+                    chart_data = pd.DataFrame({
+                        'Simulação': [s['name'] for s in st.session_state.saved_simulations],
+                        'Eventos': [s['num_events'] for s in st.session_state.saved_simulations]
+                    })
+                    st.bar_chart(chart_data.set_index('Simulação'))
+                
+                with col2:
+                    st.write("**Recursos Únicos Utilizados**")
+                    resource_data = []
+                    for sim in st.session_state.saved_simulations:
+                        df = sim['dataframe']
+                        if 'resource' in df.columns:
+                            resource_data.append(df['resource'].nunique())
+                        else:
+                            resource_data.append(0)
+                    
+                    chart_data = pd.DataFrame({
+                        'Simulação': [s['name'] for s in st.session_state.saved_simulations],
+                        'Recursos': resource_data
+                    })
+                    st.bar_chart(chart_data.set_index('Simulação'))
+                
+                # Comparação detalhada de recursos
+                st.write("### Distribuição de Recursos por Simulação")
+                
+                for idx, sim in enumerate(st.session_state.saved_simulations):
+                    with st.expander(f"{sim['name']} - {sim['timestamp']}"):
+                        df = sim['dataframe']
+                        
+                        if 'resource' in df.columns and not df['resource'].isna().all():
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.write("**Uso de Recursos:**")
+                                resource_counts = df['resource'].value_counts()
+                                st.bar_chart(resource_counts)
+                            
+                            with col2:
+                                st.write("**Recursos por Atividade:**")
+                                for activity in df['activity'].unique():
+                                    activity_df = df[df['activity'] == activity]
+                                    resources = activity_df['resource'].value_counts()
+                                    if len(resources) > 0:
+                                        st.write(f"**{activity}**:")
+                                        for resource, count in resources.items():
+                                            st.write(f"  - {resource}: {count}x")
+                        else:
+                            st.info("Esta simulação não contém informações de recursos")
 
 
 if __name__ == "__main__":

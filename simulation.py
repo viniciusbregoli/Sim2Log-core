@@ -230,8 +230,15 @@ class LogSimulator:
             if transition.label is not None:
                 timestamp = datetime.now() + timedelta(seconds=env.now)
                 
-                # Registra evento
-                self._events.append([case_id, transition.label, timestamp])
+                # Seleciona um recurso aleatório para esta atividade
+                resource = None
+                if model.resources and transition.label in model.resources:
+                    available_resources = model.resources[transition.label]
+                    if available_resources:
+                        resource = random.choice(available_resources)
+                
+                # Registra evento com recurso
+                self._events.append([case_id, transition.label, timestamp, resource])
                 
                 # Executa atividade (pausa simulação)
                 yield env.process(executor.execute(transition.label))
@@ -250,14 +257,15 @@ class LogSimulator:
         self._events.append([
             case_id,
             "case end",
-            datetime.now() + timedelta(seconds=env.now)
+            datetime.now() + timedelta(seconds=env.now),
+            None  # Sem recurso para marcador de fim
         ])
     
     def _save_csv(self, path: Path):
         """Salva eventos em CSV."""
         with open(path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['case_id', 'activity', 'time:timestamp'])
+            writer.writerow(['case_id', 'activity', 'time:timestamp', 'resource'])
             
             for event in self._events:
                 if event[1] != "case end":  # Remove marcadores internos
@@ -272,11 +280,27 @@ class LogSimulator:
         # Lê CSV
         df = pd.read_csv(csv_path, sep=',')
         
+        # Remove linhas com valores nulos em resource e substitui por string vazia
+        if 'resource' in df.columns:
+            df['resource'] = df['resource'].fillna('')
+        
+        # Renomeia colunas para o padrão XES antes da conversão
+        df_renamed = df.rename(columns={
+            'case_id': 'case:concept:name',
+            'activity': 'concept:name',
+            'time:timestamp': 'time:timestamp'
+        })
+        
+        # Se existe coluna resource, renomeia também
+        if 'resource' in df.columns:
+            df_renamed['org:resource'] = df['resource']
+            df_renamed = df_renamed.drop('resource', axis=1)
+        
         # Formata como event log
         event_log = pm4py.format_dataframe(
-            df,
-            case_id='case_id',
-            activity_key='activity',
+            df_renamed,
+            case_id='case:concept:name',
+            activity_key='concept:name',
             timestamp_key='time:timestamp'
         )
         
