@@ -268,16 +268,12 @@ def display_simulation_results(result):
             st.metric("Atividades Únicas", df['activity'].nunique())
         
         # Tabs para diferentes visualizações
-        tab1, tab2, tab3 = st.tabs(["Dados Completos", "Primeiros Registros", "Estatísticas"])
+        tab1, tab2 = st.tabs(["Dados Completos", "Estatísticas"])
         
         with tab1:
             st.dataframe(df, use_container_width=True, height=400)
         
         with tab2:
-            num_rows = st.slider("Número de linhas para visualizar", 5, 100, 20, key="preview_rows")
-            st.dataframe(df.head(num_rows), use_container_width=True)
-        
-        with tab3:
             st.write("**Frequência de Atividades:**")
             activity_counts = df['activity'].value_counts()
             st.bar_chart(activity_counts)

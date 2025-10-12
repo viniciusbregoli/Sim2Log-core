@@ -166,13 +166,8 @@ class ProcessMiner:
             save_model_image.parent.mkdir(parents=True, exist_ok=True)
             from pm4py.visualization.petri_net import visualizer as pn_visualizer
             
-            # Configurações de visualização com fundo branco
-            parameters = {
-                pn_visualizer.Variants.WO_DECORATION.value.Parameters.FORMAT: "png",
-                pn_visualizer.Variants.WO_DECORATION.value.Parameters.BGCOLOR: "white"
-            }
-            
-            gviz = pn_visualizer.apply(net, im, fm, parameters=parameters)
+            # Gera visualização padrão
+            gviz = pn_visualizer.apply(net, im, fm)
             pn_visualizer.save(gviz, str(save_model_image))
         
         # Avalia qualidade do modelo
