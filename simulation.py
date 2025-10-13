@@ -234,11 +234,13 @@ class LogSimulator:
                 resource = None
                 if model.resources and transition.label in model.resources:
                     available_resources = model.resources[transition.label]
-                    if available_resources:
-                        resource = random.choice(available_resources)
+                    # Filtra recursos válidos (não-None, não-vazios)
+                    valid_resources = [r for r in available_resources if r and str(r).strip()]
+                    if valid_resources:
+                        resource = random.choice(valid_resources)
                 
-                # Registra evento com recurso
-                self._events.append([case_id, transition.label, timestamp, resource])
+                # Registra evento com recurso (ou None se não houver recurso disponível)
+                self._events.append([case_id, transition.label, timestamp, resource if resource else ''])
                 
                 # Executa atividade (pausa simulação)
                 yield env.process(executor.execute(transition.label))
@@ -258,7 +260,7 @@ class LogSimulator:
             case_id,
             "case end",
             datetime.now() + timedelta(seconds=env.now),
-            None  # Sem recurso para marcador de fim
+            ''  # Sem recurso para marcador de fim
         ])
     
     def _save_csv(self, path: Path):
@@ -280,10 +282,6 @@ class LogSimulator:
         # Lê CSV
         df = pd.read_csv(csv_path, sep=',')
         
-        # Remove linhas com valores nulos em resource e substitui por string vazia
-        if 'resource' in df.columns:
-            df['resource'] = df['resource'].fillna('')
-        
         # Renomeia colunas para o padrão XES antes da conversão
         df_renamed = df.rename(columns={
             'case_id': 'case:concept:name',
@@ -291,9 +289,19 @@ class LogSimulator:
             'time:timestamp': 'time:timestamp'
         })
         
-        # Se existe coluna resource, renomeia também
+        # Se existe coluna resource, processa e renomeia
         if 'resource' in df.columns:
-            df_renamed['org:resource'] = df['resource']
+            # Substitui valores vazios por NaN, depois processa
+            df['resource'] = df['resource'].replace('', pd.NA)
+            
+            # Só adiciona org:resource se o valor for válido (não vazio, não NaN)
+            def process_resource(x):
+                if pd.isna(x):
+                    return None
+                x_str = str(x).strip()
+                return x_str if x_str else None
+            
+            df_renamed['org:resource'] = df['resource'].apply(process_resource)
             df_renamed = df_renamed.drop('resource', axis=1)
         
         # Formata como event log
