@@ -26,7 +26,7 @@ from log_analyzer import LogAnalyzer
 
 # Configuração da página
 st.set_page_config(
-    page_title="Sim2Log - Process Mining",
+    page_title="Process Mining",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -808,7 +808,7 @@ def main():
     init_session_state()
     
     # Cabeçalho
-    st.title("Sim2Log - Process Mining & Simulation")
+    st.title("Process Mining & Simulation")
     st.markdown("Sistema de mineração de processos, simulação e validação de logs de eventos")
     
     # Sidebar para configurações
