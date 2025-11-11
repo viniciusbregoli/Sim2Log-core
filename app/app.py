@@ -22,6 +22,7 @@ from simulation import LogSimulator
 from validation import LogValidator
 from models import SimulationConfig
 from log_analyzer import LogAnalyzer
+from ore_indicators import ORECalculator, OREMetrics, calculate_ore_scenarios
 
 
 # Configuração da página
@@ -53,6 +54,18 @@ def init_session_state():
         st.session_state.model_image_path = None
     if 'saved_simulations' not in st.session_state:
         st.session_state.saved_simulations = []
+    if 'date_filter_enabled' not in st.session_state:
+        st.session_state.date_filter_enabled = False
+    if 'date_filter_start' not in st.session_state:
+        st.session_state.date_filter_start = None
+    if 'date_filter_end' not in st.session_state:
+        st.session_state.date_filter_end = None
+    if 'log_min_date' not in st.session_state:
+        st.session_state.log_min_date = None
+    if 'log_max_date' not in st.session_state:
+        st.session_state.log_max_date = None
+    if 'ore_metrics' not in st.session_state:
+        st.session_state.ore_metrics = None
 
 
 def save_uploaded_file(uploaded_file):
@@ -60,15 +73,75 @@ def save_uploaded_file(uploaded_file):
     try:
         upload_dir = Path("app/uploads")
         upload_dir.mkdir(parents=True, exist_ok=True)
-        
+
         file_path = upload_dir / uploaded_file.name
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-        
+
         return file_path
     except Exception as e:
         st.error(f"Erro ao salvar arquivo: {e}")
         return None
+
+
+def extract_log_date_range(log_path):
+    """Extrai os timestamps mínimo e máximo do log XES."""
+    from pm4py.objects.log.importer.xes import importer as xes_importer
+
+    try:
+        log = xes_importer.apply(str(log_path))
+
+        timestamps = []
+        for trace in log:
+            for event in trace:
+                if 'time:timestamp' in event:
+                    timestamps.append(event['time:timestamp'])
+
+        if timestamps:
+            min_date = min(timestamps).date()
+            max_date = max(timestamps).date()
+            return min_date, max_date
+        else:
+            return None, None
+    except Exception as e:
+        st.warning(f"Erro ao extrair intervalo de datas do log: {e}")
+        return None, None
+
+
+def filter_dataframe_by_date(df, timestamp_column='timestamp'):
+    """Filtra dataframe por intervalo de datas se o filtro estiver habilitado."""
+    if not st.session_state.date_filter_enabled:
+        return df
+
+    if timestamp_column not in df.columns:
+        return df
+
+    date_start = st.session_state.date_filter_start
+    date_end = st.session_state.date_filter_end
+
+    if not date_start or not date_end:
+        return df
+
+    try:
+        # Converte coluna de timestamp para datetime se necessário
+        if not pd.api.types.is_datetime64_any_dtype(df[timestamp_column]):
+            df_filtered = df.copy()
+            df_filtered[timestamp_column] = pd.to_datetime(df_filtered[timestamp_column])
+        else:
+            df_filtered = df.copy()
+
+        # Converte date_start e date_end para datetime
+        start_datetime = pd.to_datetime(date_start)
+        end_datetime = pd.to_datetime(date_end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+
+        # Filtra
+        mask = (df_filtered[timestamp_column] >= start_datetime) & (df_filtered[timestamp_column] <= end_datetime)
+        df_filtered = df_filtered[mask]
+
+        return df_filtered
+    except Exception as e:
+        st.warning(f"Erro ao aplicar filtro de datas: {e}")
+        return df
 
 
 def analyze_log(log_path):
@@ -167,11 +240,11 @@ def run_validation(original_log_path, simulated_log_path):
 def analyze_resource_workload(log_path):
     """Analisa a carga de trabalho dos recursos."""
     from pm4py.objects.log.importer.xes import importer as xes_importer
-    
+
     try:
         # Carrega o log
         log = xes_importer.apply(str(log_path))
-        
+
         # Extrai dados de recursos
         resource_data = []
         for trace in log:
@@ -182,15 +255,18 @@ def analyze_resource_workload(log_path):
                         'activity': event['concept:name'],
                         'timestamp': event.get('time:timestamp', None)
                     })
-        
+
         if not resource_data:
             return None
     except Exception as e:
         st.warning(f"Erro ao analisar recursos: {str(e)}")
         return None
-    
+
     df = pd.DataFrame(resource_data)
-    
+
+    # Aplica filtro de datas se habilitado
+    df = filter_dataframe_by_date(df, 'timestamp')
+
     # Análises
     workload_analysis = {
         'total_events': df.groupby('resource').size().sort_values(ascending=False),
@@ -199,7 +275,7 @@ def analyze_resource_workload(log_path):
         'unique_resources': df['resource'].nunique(),
         'dataframe': df
     }
-    
+
     return workload_analysis
 
 
@@ -251,7 +327,11 @@ def display_log_profile(profile, log_path=None):
     if log_path and profile.has_resources:
         st.write("---")
         st.subheader("📊 Análise de Carga de Trabalho dos Recursos")
-        
+
+        # Aviso de filtro de datas ativo
+        if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
+            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+
         with st.spinner("Analisando carga de trabalho dos recursos..."):
             workload = analyze_resource_workload(log_path)
         
@@ -433,27 +513,76 @@ def display_mining_results(model, model_image_path):
         simplicity = model.quality_metrics.get('simplicity', 0)
         st.metric("Simplicity", f"{simplicity:.3f}", help="Simplicidade do modelo (0-1)")
     
-    # Exibe diagrama de Petri
+    # Tabs para visualizações do modelo
     if model_image_path and model_image_path.exists():
-        st.write("**Diagrama de Rede de Petri:**")
-        
-        # Adiciona CSS para fundo branco na imagem
-        st.markdown(
-            """
-            <style>
-            .stImage {
-                background-color: white;
-                padding: 20px;
-                border-radius: 5px;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        
-        image = Image.open(model_image_path)
-        st.image(image, caption="Modelo de Processo Descoberto", use_container_width=True)
-    
+        # Verifica se existe Process Tree
+        tree_image_path = model_image_path.parent / f"{model_image_path.stem}_tree{model_image_path.suffix}"
+
+        if tree_image_path.exists():
+            # Exibe tabs com ambas visualizações
+            viz_tab1, viz_tab2 = st.tabs(["Rede de Petri", "Process Tree"])
+
+            with viz_tab1:
+                st.write("**Diagrama de Rede de Petri:**")
+
+                # Adiciona CSS para fundo branco na imagem
+                st.markdown(
+                    """
+                    <style>
+                    .stImage {
+                        background-color: white;
+                        padding: 20px;
+                        border-radius: 5px;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                image = Image.open(model_image_path)
+                st.image(image, caption="Modelo de Processo Descoberto", use_container_width=True)
+
+            with viz_tab2:
+                st.write("**Process Tree:**")
+                st.caption("Representação hierárquica do processo descoberto")
+
+                tree_image = Image.open(tree_image_path)
+                st.image(tree_image, caption="Process Tree", use_container_width=True)
+
+                # Explica a notação
+                with st.expander("ℹ️ Entendendo a Process Tree"):
+                    st.write("""
+                    **Operadores:**
+                    - **→ (seq)**: Sequência - atividades executadas em ordem
+                    - **× (xor)**: Escolha exclusiva - apenas um caminho é seguido
+                    - **+ (and)**: Paralelismo - atividades podem ser intercaladas
+                    - **↻ (loop)**: Loop - atividades podem se repetir
+                    - **τ (tau)**: Transição silenciosa (invisível)
+
+                    **Como ler:**
+                    A árvore mostra a estrutura lógica do processo de cima para baixo.
+                    Cada nó representa um operador que controla como as atividades filhas são executadas.
+                    """)
+        else:
+            # Só mostra Petri Net se não houver Process Tree
+            st.write("**Diagrama de Rede de Petri:**")
+
+            st.markdown(
+                """
+                <style>
+                .stImage {
+                    background-color: white;
+                    padding: 20px;
+                    border-radius: 5px;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+            image = Image.open(model_image_path)
+            st.image(image, caption="Modelo de Processo Descoberto", use_container_width=True)
+
     # Estatísticas de atividades
     with st.expander("Estatísticas das Atividades"):
         st.write(f"**Taxa de chegada:** {model.arrival_rate:.2f} minutos/caso")
@@ -568,7 +697,11 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
     if result.xes_path.exists() and 'resource' in df.columns and not df['resource'].isna().all():
         st.write("---")
         st.subheader("📊 Análise de Carga de Trabalho (Log Sintético)")
-        
+
+        # Aviso de filtro de datas ativo
+        if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
+            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+
         with st.spinner("Analisando distribuição de recursos na simulação..."):
             workload = analyze_resource_workload(result.xes_path)
         
@@ -777,16 +910,16 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
 def display_validation_results(validation):
     """Exibe resultados da validação."""
     st.subheader("Resultados da Validação")
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric("Fitness", f"{validation.fitness:.3f}")
     with col2:
         st.metric("Custo", f"{validation.cost:.2f}")
     with col3:
         st.metric("Similaridade", f"{validation.similarity_percentage:.1f}%")
-    
+
     # Interpretação
     if validation.fitness >= 0.9:
         st.success("Excelente! Log sintético muito similar ao original.")
@@ -796,11 +929,194 @@ def display_validation_results(validation):
         st.warning("Moderado. Considere ajustar os parâmetros de simulação.")
     else:
         st.error("Baixa similaridade. Revise os parâmetros de mineração e simulação.")
-    
+
     with st.expander("Detalhes da Validação"):
         st.write(f"**Número de alinhamentos:** {validation.details.get('num_alignments', 0)}")
         st.write(f"**Fitness mínimo:** {validation.details.get('fitness_min', 0):.3f}")
         st.write(f"**Fitness máximo:** {validation.details.get('fitness_max', 0):.3f}")
+
+
+def calculate_ore_indicators(log_path: Path) -> OREMetrics:
+    """Calcula indicadores ORE de um log XES."""
+    with st.spinner("Calculando indicadores ORE..."):
+        calculator = ORECalculator(verbose=False)
+        metrics = calculator.calculate_from_log(log_path)
+        st.session_state.ore_metrics = metrics
+        return metrics
+
+
+def display_ore_results(metrics: OREMetrics):
+    """Exibe resultados dos indicadores ORE."""
+    st.subheader("Indicadores ORE (Operating Room Effectiveness)")
+
+    # Informações de debug (expander colapsado)
+    with st.expander("🔍 Detalhes do Cálculo"):
+        st.write(f"**Dados base:**")
+        st.write(f"- Cirurgias analisadas: {metrics.num_surgeries_scheduled}")
+        st.write(f"- TTA (Tempo Total Disponível): {metrics.total_time_available:.1f}h")
+        st.write(f"- Setup/Limpeza limitado a 15% do TTA: máx {metrics.total_time_available * 0.15:.1f}h")
+
+        # Cálculo inverso para mostrar quantos dias operacionais foram detectados
+        if metrics.loss_setup > 0:
+            setup_minutes = 15  # valor padrão atual
+            estimated_op_days = (metrics.loss_setup * 60) / setup_minutes
+            st.write(f"- Dias operacionais estimados (dia×sala): ~{estimated_op_days:.0f}")
+
+    # Índices principais
+    st.write("### Índices Principais")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("ORE Total", f"{metrics.ore:.1f}%", help="Overall ORE: Disponibilidade × Desempenho × Qualidade")
+    with col2:
+        st.metric("Disponibilidade", f"{metrics.availability:.1f}%", help="TTS / TTA")
+    with col3:
+        st.metric("Desempenho", f"{metrics.performance:.1f}%", help="TTU / TTS")
+    with col4:
+        st.metric("Qualidade", f"{metrics.quality:.1f}%", help="TTAV / TTU")
+
+    # Interpretação do ORE
+    if metrics.ore >= 85:
+        st.success("Excelente! Sala de cirurgia operando em alta efetividade.")
+    elif metrics.ore >= 70:
+        st.success("Bom! Desempenho satisfatório da sala de cirurgia.")
+    elif metrics.ore >= 50:
+        st.warning("Moderado. Há oportunidades significativas de melhoria.")
+    else:
+        st.error("Baixo. Recomenda-se análise detalhada das perdas e ações de melhoria.")
+
+    # Tempos
+    st.write("### Tempos (horas)")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("TTA", f"{metrics.total_time_available:.1f}h", help="Tempo Total Disponível")
+    with col2:
+        st.metric("TTS", f"{metrics.total_time_scheduled:.1f}h", help="Tempo Total Agendado")
+    with col3:
+        st.metric("TTU", f"{metrics.total_time_used:.1f}h", help="Tempo Total Usado")
+    with col4:
+        st.metric("TTAV", f"{metrics.total_time_added_value:.1f}h", help="Tempo de Valor Agregado")
+
+    # Perdas por categoria
+    st.write("### Perdas por Categoria")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.write("**Perdas de Disponibilidade**")
+        st.metric("Falhas de Equipamento", f"{metrics.loss_equipment_failure:.1f}h")
+        st.metric("Setup/Limpeza", f"{metrics.loss_setup:.1f}h")
+        st.metric("Não Agendamento", f"{metrics.loss_not_scheduling:.1f}h")
+        total_disp = metrics.loss_equipment_failure + metrics.loss_setup + metrics.loss_not_scheduling
+        st.caption(f"Total: {total_disp:.1f}h")
+
+    with col2:
+        st.write("**Perdas de Desempenho**")
+        st.metric("Pequenas Paradas", f"{metrics.loss_small_shutdowns:.1f}h")
+        st.metric("Variação Tempo Cirurgia", f"{metrics.loss_surgery_time_variation:.1f}h")
+        st.metric("Cancelamentos", f"{metrics.loss_cancellations:.1f}h")
+        total_perf = metrics.loss_small_shutdowns + metrics.loss_surgery_time_variation + metrics.loss_cancellations
+        st.caption(f"Total: {total_perf:.1f}h")
+
+    with col3:
+        st.write("**Perdas de Qualidade**")
+        st.metric("Reintervenções", f"{metrics.loss_reinterventions:.1f}h")
+        st.caption(f"Total: {metrics.loss_reinterventions:.1f}h")
+
+    # Estatísticas de cirurgias
+    st.write("### Estatísticas de Cirurgias")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Cirurgias Agendadas", metrics.num_surgeries_scheduled)
+    with col2:
+        st.metric("Cirurgias Realizadas", metrics.num_surgeries_completed)
+    with col3:
+        st.metric("Cirurgias Canceladas", metrics.num_surgeries_cancelled)
+    with col4:
+        st.metric("Taxa de Cancelamento", f"{metrics.cancellation_rate:.1f}%")
+
+    # Cenários de melhoria
+    st.write("### Cenários de Melhoria")
+    scenarios_df = calculate_ore_scenarios(metrics)
+
+    # Formata dataframe para exibição
+    display_df = scenarios_df.copy()
+    display_df['TTA'] = display_df['TTA'].apply(lambda x: f"{x:.1f}h")
+    display_df['TTS'] = display_df['TTS'].apply(lambda x: f"{x:.1f}h")
+    display_df['TTU'] = display_df['TTU'].apply(lambda x: f"{x:.1f}h")
+    display_df['TTAV'] = display_df['TTAV'].apply(lambda x: f"{x:.1f}h")
+    display_df['Availability_%'] = display_df['Availability_%'].apply(lambda x: f"{x:.1f}%")
+    display_df['Performance_%'] = display_df['Performance_%'].apply(lambda x: f"{x:.1f}%")
+    display_df['Quality_%'] = display_df['Quality_%'].apply(lambda x: f"{x:.1f}%")
+    display_df['ORE_%'] = display_df['ORE_%'].apply(lambda x: f"{x:.1f}%")
+    display_df['Variation_%'] = display_df['Variation_%'].apply(lambda x: f"+{x:.1f}%" if x > 0 else f"{x:.1f}%")
+    display_df['Additional_Hours'] = display_df['Additional_Hours'].apply(lambda x: f"+{x:.1f}h" if x > 0 else f"{x:.1f}h")
+
+    st.dataframe(display_df, use_container_width=True)
+
+    with st.expander("ℹ️ Sobre os Cenários"):
+        st.write("""
+        **Base**: Situação atual extraída do log
+
+        **Cenário A**: Eliminar tempo não agendado (scheduling = 0)
+        - Melhora o planejamento e ocupação da sala
+
+        **Cenário B**: Reduzir 5 minutos no setup entre cirurgias
+        - Otimizar processos de limpeza e preparação
+
+        **Cenário G**: Combinação de melhorias
+        - Eliminar tempo não agendado
+        - Reduzir 5 minutos no setup
+        - Reduzir 50% dos cancelamentos
+        """)
+
+    # Download dos resultados
+    st.write("### Exportar Resultados")
+
+    # Prepara dados para exportação
+    export_data = {
+        'Métrica': [
+            'ORE Total (%)', 'Disponibilidade (%)', 'Desempenho (%)', 'Qualidade (%)',
+            'TTA (h)', 'TTS (h)', 'TTU (h)', 'TTAV (h)',
+            'Perda: Falhas Equipamento (h)', 'Perda: Setup (h)', 'Perda: Não Agendamento (h)',
+            'Perda: Pequenas Paradas (h)', 'Perda: Variação Tempo (h)', 'Perda: Cancelamentos (h)',
+            'Perda: Reintervenções (h)',
+            'Cirurgias Agendadas', 'Cirurgias Realizadas', 'Cirurgias Canceladas', 'Taxa Cancelamento (%)'
+        ],
+        'Valor': [
+            metrics.ore, metrics.availability, metrics.performance, metrics.quality,
+            metrics.total_time_available, metrics.total_time_scheduled,
+            metrics.total_time_used, metrics.total_time_added_value,
+            metrics.loss_equipment_failure, metrics.loss_setup, metrics.loss_not_scheduling,
+            metrics.loss_small_shutdowns, metrics.loss_surgery_time_variation, metrics.loss_cancellations,
+            metrics.loss_reinterventions,
+            metrics.num_surgeries_scheduled, metrics.num_surgeries_completed,
+            metrics.num_surgeries_cancelled, metrics.cancellation_rate
+        ]
+    }
+
+    export_df = pd.DataFrame(export_data)
+    csv_data = export_df.to_csv(index=False).encode('utf-8')
+
+    st.download_button(
+        label="📥 Download Indicadores (CSV)",
+        data=csv_data,
+        file_name="ore_indicators.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+    # Download dos cenários
+    scenarios_csv = scenarios_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Cenários (CSV)",
+        data=scenarios_csv,
+        file_name="ore_scenarios.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
 
 
 def main():
@@ -831,7 +1147,16 @@ def main():
                 st.session_state.simulation_result = None
                 st.session_state.validation_result = None
                 st.session_state.log_profile = None
+
+                # Extrai intervalo de datas do log
+                if st.session_state.log_path:
+                    min_date, max_date = extract_log_date_range(st.session_state.log_path)
+                    st.session_state.log_min_date = min_date
+                    st.session_state.log_max_date = max_date
+
                 st.success(f"Arquivo '{uploaded_file.name}' carregado!")
+                if st.session_state.log_min_date and st.session_state.log_max_date:
+                    st.info(f"Período do log: {st.session_state.log_min_date} até {st.session_state.log_max_date}")
         
         st.divider()
         
@@ -870,9 +1195,55 @@ def main():
                 step=0.5,
                 help="Intervalo entre chegadas de casos em minutos"
             )
-        
+
         st.divider()
-        
+
+        # Filtro de datas (só aparece se o log foi carregado)
+        if st.session_state.log_path and st.session_state.log_min_date and st.session_state.log_max_date:
+            st.header("Filtro de Datas")
+            date_filter_enabled = st.checkbox(
+                "Habilitar filtro de datas",
+                help="Filtra as visualizações por intervalo de datas (não afeta mineração/simulação)"
+            )
+
+            if date_filter_enabled:
+                st.caption("Filtra apenas a visualização dos dados")
+                st.caption(f"Período disponível: {st.session_state.log_min_date} até {st.session_state.log_max_date}")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    date_start = st.date_input(
+                        "Data Inicial",
+                        value=st.session_state.log_min_date,
+                        min_value=st.session_state.log_min_date,
+                        max_value=st.session_state.log_max_date,
+                        help="Data inicial para filtro (inclusivo)"
+                    )
+                with col2:
+                    date_end = st.date_input(
+                        "Data Final",
+                        value=st.session_state.log_max_date,
+                        min_value=st.session_state.log_min_date,
+                        max_value=st.session_state.log_max_date,
+                        help="Data final para filtro (inclusivo)"
+                    )
+
+                st.session_state.date_filter_enabled = date_filter_enabled
+                st.session_state.date_filter_start = date_start
+                st.session_state.date_filter_end = date_end
+
+                if date_start and date_end:
+                    if date_start > date_end:
+                        st.error("Data inicial não pode ser maior que data final")
+                    else:
+                        st.success(f"Filtro ativo: {date_start} até {date_end}")
+            else:
+                st.session_state.date_filter_enabled = False
+                st.session_state.date_filter_start = None
+                st.session_state.date_filter_end = None
+
+            st.divider()
+
         # Configuração de recursos
         st.header("Configuração de Recursos")
         modify_resources = st.checkbox(
@@ -1005,12 +1376,13 @@ def main():
         return
     
     # Tabs para organizar o conteúdo
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "1. Análise",
         "2. Mineração",
         "3. Simulação",
         "4. Validação",
-        "5. Comparação"
+        "5. Comparação",
+        "6. ORE Indicators"
     ])
     
     with tab1:
@@ -1072,7 +1444,11 @@ def main():
     
     with tab5:
         st.header("Comparação: Log Original vs Simulação")
-        
+
+        # Aviso de filtro de datas ativo
+        if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
+            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+
         if not st.session_state.log_profile:
             st.warning("⚠️ Execute a análise do log original primeiro")
         elif len(st.session_state.saved_simulations) == 0:
@@ -1080,7 +1456,7 @@ def main():
         else:
             # Seleção de simulação
             col1, col2 = st.columns([3, 1])
-            
+
             with col1:
                 simulation_names = [f"{s['name']} - {s['timestamp']}" for s in st.session_state.saved_simulations]
                 selected_sim_idx = st.selectbox(
@@ -1088,17 +1464,20 @@ def main():
                     range(len(st.session_state.saved_simulations)),
                     format_func=lambda i: simulation_names[i]
                 )
-            
+
             with col2:
                 st.write("")  # Espaçamento
                 st.write("")
                 if st.button("🗑️ Limpar Simulações"):
                     st.session_state.saved_simulations = []
                     st.rerun()
-            
+
             selected_sim = st.session_state.saved_simulations[selected_sim_idx]
-            sim_df = selected_sim['dataframe']
-            
+            sim_df = selected_sim['dataframe'].copy()
+
+            # Aplica filtro de datas na simulação
+            sim_df = filter_dataframe_by_date(sim_df, 'timestamp')
+
             st.write("---")
             
             # Comparação de métricas gerais
@@ -1286,6 +1665,44 @@ def main():
                 st.info("ℹ️ Log original não possui informações de recursos para comparar")
             elif not sim_workload:
                 st.info("ℹ️ Simulação não possui informações de recursos para comparar")
+
+    with tab6:
+        st.header("Indicadores ORE")
+        st.caption("Operating Room Effectiveness - Indicadores de Efetividade de Sala Cirúrgica")
+
+        with st.expander("ℹ️ Sobre os Indicadores ORE"):
+            st.write("""
+            Os **Indicadores ORE (Operating Room Effectiveness)** são baseados na metodologia Lean Healthcare
+            e adaptados do OEE (Overall Equipment Effectiveness) da manufatura.
+
+            **Três pilares principais:**
+
+            1. **Disponibilidade**: Quanto tempo agendado em relação ao tempo total disponível
+               - Perdas: Falhas de equipamento, Setup/limpeza, Não agendamento
+
+            2. **Desempenho**: Quanto tempo foi efetivamente usado em relação ao agendado
+               - Perdas: Pequenas paradas, Variação no tempo de cirurgia, Cancelamentos
+
+            3. **Qualidade**: Quanto tempo agregou valor em relação ao tempo usado
+               - Perdas: Reintervenções
+
+            **Fórmula:**
+
+            ORE = Disponibilidade × Desempenho × Qualidade
+
+            **Referência:**
+            Souza, T. A., Vaccaro, G. L. R., & Lima, R. M. (2020).
+            Operating room effectiveness: a lean health-care performance indicator.
+            """)
+
+        if st.button("Calcular Indicadores ORE", type="primary"):
+            calculate_ore_indicators(st.session_state.log_path)
+            st.success("Indicadores ORE calculados com sucesso!")
+
+        if st.session_state.ore_metrics:
+            display_ore_results(st.session_state.ore_metrics)
+        else:
+            st.info("Clique no botão acima para calcular os indicadores ORE do log carregado")
 
 
 if __name__ == "__main__":

@@ -46,42 +46,45 @@ class ActivityStatistics:
 @dataclass
 class ProcessModel:
     """Modelo de processo extraído."""
-    
+
     petri_net: object
     """Rede de Petri (pm4py object)."""
-    
+
     initial_marking: object
     """Marcação inicial."""
-    
+
     final_marking: object
     """Marcação final."""
-    
+
     activities: Dict[str, ActivityStatistics]
     """Estatísticas das atividades."""
-    
+
     arrival_rate: float
     """Taxa de chegada em minutos."""
-    
+
     dispersion_rate: float
     """Taxa de dispersão em minutos."""
-    
+
     median_case_duration: float
     """Duração mediana dos casos."""
-    
+
     num_cases: int
     """Número de casos no log original."""
-    
+
     num_variants: int
     """Número de variantes após filtragem."""
-    
+
     quality_metrics: Dict[str, float] = field(default_factory=dict)
     """Métricas de qualidade (fitness, precision, etc)."""
-    
+
     resources: Optional[Dict[str, List[str]]] = None
     """Recursos por atividade."""
-    
+
     log_profile: Optional[object] = None
     """Perfil do log original (LogProfile)."""
+
+    process_tree: Optional[object] = None
+    """Process Tree (pm4py ProcessTree object)."""
 
 
 @dataclass

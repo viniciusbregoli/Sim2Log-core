@@ -159,16 +159,28 @@ class ProcessMiner:
         self._log("Descobrindo modelo de processo (Inductive Miner)...")
         from pm4py.algo.discovery.inductive import algorithm as inductive_miner
         net, im, fm = inductive_miner.apply(filtered_log)
-        
+
+        # Descobre Process Tree
+        self._log("Descobrindo Process Tree...")
+        process_tree = pm4py.discover_process_tree_inductive(
+            filtered_log,
+            noise_threshold=1 - variant_filter  # Usa threshold baseado no filtro
+        )
+
         # Salva visualização se solicitado
         if save_model_image:
             self._log(f"Salvando imagem do modelo em {save_model_image}...")
             save_model_image.parent.mkdir(parents=True, exist_ok=True)
             from pm4py.visualization.petri_net import visualizer as pn_visualizer
-            
-            # Gera visualização padrão
+
+            # Gera visualização da Rede de Petri
             gviz = pn_visualizer.apply(net, im, fm)
             pn_visualizer.save(gviz, str(save_model_image))
+
+            # Gera visualização da Process Tree
+            tree_image_path = save_model_image.parent / f"{save_model_image.stem}_tree{save_model_image.suffix}"
+            self._log(f"Salvando Process Tree em {tree_image_path}...")
+            pm4py.save_vis_process_tree(process_tree, str(tree_image_path))
         
         # Avalia qualidade do modelo
         self._log("Avaliando qualidade do modelo...")
@@ -199,7 +211,8 @@ class ProcessMiner:
             num_variants=num_variants,
             quality_metrics=quality,
             resources=resources,
-            log_profile=log_profile
+            log_profile=log_profile,
+            process_tree=process_tree
         )
         
         self._log("Mineração concluída com sucesso.")
