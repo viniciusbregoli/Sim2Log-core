@@ -90,11 +90,25 @@ class ORECalculator:
         return self._calculate_metrics(df)
 
     def _log_to_dataframe(self, log) -> pd.DataFrame:
-        """Converte log XES para DataFrame."""
+        """Converte log XES para DataFrame com atributos operacionais."""
         records = []
+        trace_data = {}  # Store trace-level attributes
 
         for trace in log:
             case_id = trace.attributes.get('concept:name', 'unknown')
+
+            # Extract trace-level operational attributes (added by enriched converter)
+            status = trace.attributes.get('surgery:status', 'Unknown')
+            duration_real = trace.attributes.get('surgery:duration_real_minutes', None)
+            cancellation_reason = trace.attributes.get('surgery:cancellation_reason', None)
+            scheduled_date = trace.attributes.get('surgery:scheduled_date', None)
+
+            trace_data[case_id] = {
+                'status': status,
+                'duration_real_minutes': duration_real,
+                'cancellation_reason': cancellation_reason,
+                'scheduled_date': scheduled_date
+            }
 
             for event in trace:
                 # Tenta pegar sala em diferentes variações (maiúscula/minúscula)
@@ -112,10 +126,17 @@ class ORECalculator:
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values(['case_id', 'timestamp'])
 
+        # Add trace-level attributes to DataFrame
+        trace_df = pd.DataFrame.from_dict(trace_data, orient='index').reset_index()
+        trace_df.columns = ['case_id'] + list(trace_df.columns[1:])
+
+        # Merge with events DataFrame
+        df = df.merge(trace_df, on='case_id', how='left')
+
         return df
 
     def _calculate_metrics(self, df: pd.DataFrame) -> OREMetrics:
-        """Calcula todas as métricas ORE."""
+        """Calcula todas as métricas ORE usando dados reais do XES enriquecido."""
 
         # Identifica casos únicos
         cases = df.groupby('case_id').agg({
@@ -124,6 +145,26 @@ class ORECalculator:
 
         cases.columns = ['case_id', 'start_time', 'end_time', 'num_events']
         cases['duration_hours'] = (cases['end_time'] - cases['start_time']).dt.total_seconds() / 3600
+
+        # Add real operational data to cases
+        case_operational = df.groupby('case_id').agg({
+            'status': 'first',
+            'duration_real_minutes': 'first',
+            'cancellation_reason': 'first'
+        }).reset_index()
+        cases = cases.merge(case_operational, on='case_id', how='left')
+
+        # Log data coverage
+        total_cases = len(cases)
+        cases_with_status = cases['status'].notna().sum()
+        cases_with_duration = cases['duration_real_minutes'].notna().sum()
+        cases_with_cancel_reason = cases['cancellation_reason'].notna().sum()
+
+        self._log(f"Data Coverage:")
+        self._log(f"  Total cases: {total_cases}")
+        self._log(f"  With status: {cases_with_status} ({cases_with_status/total_cases*100:.1f}%)")
+        self._log(f"  With real duration: {cases_with_duration} ({cases_with_duration/total_cases*100:.1f}%)")
+        self._log(f"  With cancellation reason: {cases_with_cancel_reason}")
 
         # Identifica período total
         min_date = df['timestamp'].min()
@@ -136,9 +177,10 @@ class ORECalculator:
         # TTA - Total Time Available
         total_time_available = working_days * self.daily_hours
 
-        # Perdas de Disponibilidade
+        # === PERDAS DE DISPONIBILIDADE ===
         num_surgeries = len(cases)
 
+        # LOSS: Setup Time
         # Calcula setup baseado na realidade operacional:
         # Agrupa cirurgias por dia e sala para calcular setup realista
         cases['date'] = cases['start_time'].dt.date
@@ -169,33 +211,46 @@ class ORECalculator:
         max_allowed_setup = total_time_available * 0.15
         loss_setup = min(estimated_setup_hours, max_allowed_setup)
 
-        # Not Scheduling: tempo não preenchido (estimativa conservadora: 6% do TTA)
+        # LOSS: Not Scheduling (ESTIMATE - no direct data available)
+        # Tempo não preenchido (estimativa conservadora: 6% do TTA)
         loss_not_scheduling = total_time_available * 0.06  # 6% conforme artigo
 
-        # Equipment Failure: assumindo 0 (não temos dados específicos)
+        # LOSS: Equipment Failure (ESTIMATE - assuming 0, no data available)
         loss_equipment_failure = 0.0
 
         # TTS - Total Time Scheduled
         total_time_scheduled = total_time_available - loss_equipment_failure - loss_setup - loss_not_scheduling
 
-        # Perdas de Desempenho
-        # Cancellations: identificar casos com poucos eventos (< 3 eventos = cancelado)
-        cancelled_cases = cases[cases['num_events'] < 3]
+        # === PERDAS DE DESEMPENHO ===
+
+        # LOSS: Cancellations (REAL DATA from surgery:status attribute)
+        # Usar dados reais do status da cirurgia
+        case_status = df.groupby('case_id')['status'].first().reset_index()
+        cancelled_cases = case_status[case_status['status'] == 'Cancelada']
         num_cancelled = len(cancelled_cases)
 
-        # Estima tempo perdido com cancelamentos (média de 1.5h por cirurgia cancelada)
-        loss_cancellations = num_cancelled * 1.5
+        # Calcula tempo perdido com cancelamentos
+        # Cancelamentos perdem principalmente o tempo de preparação (não a cirurgia completa)
+        # Estimativa: 30 minutos de preparação + setup por cirurgia cancelada
+        avg_cancellation_loss_hours = 0.5  # 30 minutos
+        loss_cancellations = num_cancelled * avg_cancellation_loss_hours
 
-        # Small Shutdowns e Variation: só aplicar se TTS for positivo
+        self._log(f"Cancellations: {num_cancelled} surgeries cancelled (REAL DATA)")
+        self._log(f"  Estimated loss: {loss_cancellations:.1f} hours")
+
+        # LOSS: Small Shutdowns (ESTIMATE - 2% of TTS)
+        # Pequenas interrupções durante cirurgias
         if total_time_scheduled > 0:
-            # Small Shutdowns: assumindo 2% do TTS
             loss_small_shutdowns = total_time_scheduled * 0.02
-
-            # Variation in Surgery Time: diferença entre tempo planejado e usado
-            # Estimativa: 3% do tempo agendado
-            loss_surgery_time_variation = total_time_scheduled * 0.03
         else:
             loss_small_shutdowns = 0.0
+
+        # LOSS: Surgery Time Variation (ESTIMATE - 3% of TTS)
+        # Note: Could be calculated from real data if we had scheduled duration
+        # Currently using estimate as scheduled duration not available in Excel
+        if total_time_scheduled > 0:
+            loss_surgery_time_variation = total_time_scheduled * 0.03
+        else:
             loss_surgery_time_variation = 0.0
 
         # TTU - Total Time Used
@@ -204,8 +259,10 @@ class ORECalculator:
         # Garante que TTU não seja negativo
         total_time_used = max(0.0, total_time_used)
 
-        # Perdas de Qualidade
-        # Reinterventions: assumindo 0 (dados não disponíveis)
+        # === PERDAS DE QUALIDADE ===
+
+        # LOSS: Reinterventions (ESTIMATE - assuming 0, no data available)
+        # Reintervenções não identificadas nos dados
         loss_reinterventions = 0.0
 
         # TTAV - Total Time of Added Value

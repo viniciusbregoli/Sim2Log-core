@@ -16,3 +16,6 @@ output/
 *.swp
 *.swo
 *~
+uv.lock
+test_output
+bases.zip

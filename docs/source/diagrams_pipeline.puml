@@ -1,0 +1,64 @@
+@startuml pipeline_component_diagram
+!theme plain
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Figura 2 - ProcessMiningPipeline - Fluxo Completo
+
+' Central component
+rectangle "**ProcessMiningPipeline**\nOrquestrador Principal" as Pipeline #LightBlue {
+}
+
+' Input data - Left side
+rectangle "Entrada de Dados" as InputData #LightGray {
+    component "XES Log Original" as XES
+    component "Configurações" as Config
+}
+
+' Processing modules - Top
+rectangle "Módulos de Processamento" as Modules #LightYellow {
+    component "LogAnalyzer" as Analyzer
+    component "ProcessMiner" as Miner
+    component "LogSimulator" as Simulator
+}
+
+' Validation and metrics - Bottom
+rectangle "Validação e Métricas" as Validation #LightGreen {
+    component "LogValidator" as Validator
+    component "ORECalculator" as ORE
+    component "Métricas de Qualidade" as Quality
+}
+
+' Outputs - Right side
+rectangle "Resultados" as Outputs #LightPink {
+    component "Perfil do Log" as Profile
+    component "Modelo de Processo" as Model
+    component "Log Sintético" as SyntheticLog
+    component "Relatório de Validação" as ValidationReport
+    component "Indicadores ORE" as OREMetrics
+}
+
+' Connections - Inputs
+InputData --> Pipeline : entrada
+Config --> Pipeline : parâmetros
+
+' Connections - Modules
+Modules --> Pipeline : processamento
+
+' Connections - Validation
+Pipeline --> Validation : validação
+
+' Connections - Outputs
+Pipeline --> Outputs : resultados
+
+' Internal flow annotations
+note right of Pipeline
+  Executa pipeline completo:
+  1. Análise do log
+  2. Descoberta do modelo
+  3. Simulação
+  4. Validação
+  5. Cálculo de ORE
+end note
+
+@enduml

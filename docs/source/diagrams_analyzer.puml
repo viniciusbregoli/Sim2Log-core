@@ -1,0 +1,91 @@
+@startuml analyzer_component_diagram
+!theme plain
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Figura 3 - LogAnalyzer - Análise e Perfil do Log
+
+' Central component
+rectangle "**LogAnalyzer**\nAnálise de Características" as Analyzer #LightBlue {
+}
+
+' Input data - Left side
+component "Event Log (XES)" as EventLog
+component "Traces" as Traces
+component "Events" as Events
+component "Attributes" as Attributes
+component "Extensões XES" as Extensions
+component "Timestamps" as Timestamps
+component "Resources" as Resources
+
+' Configuration - Top
+rectangle "Configuração" as Config #LightYellow {
+    component "Auto-detecção" as AutoDetect
+    component "Validação de Formato" as FormatValidation
+    component "Nível de Análise" as AnalysisLevel
+}
+
+' Analysis methods - Bottom
+rectangle "Métodos de Análise" as Methods #LightGreen {
+    component "pm4py" as PM4PY
+    component "Detecção de Padrões" as PatternDetection
+    component "Análise de Variantes" as VariantAnalysis
+    component "Análise Estatística" as Statistics
+}
+
+' Outputs - Right side
+rectangle "Perfil do Log" as Output #LightPink {
+    component "Número de Traces" as NumTraces
+    component "Número de Events" as NumEvents
+    component "Activities Únicas" as UniqueActivities
+    component "Resources Únicas" as UniqueResources
+    component "Variantes de Processo" as Variants
+    component "Activity Names" as ActivityNames
+    component "Timestamp Columns" as TimestampCols
+    component "Resource Columns" as ResourceCols
+    component "Compatibilidade Sim2Log" as Compatibility
+    component "Estatísticas Temporais" as TimeStats
+}
+
+' Connections - Inputs from left
+EventLog --> Analyzer
+Traces --> Analyzer
+Events --> Analyzer
+Attributes --> Analyzer
+Extensions --> Analyzer
+Timestamps --> Analyzer
+Resources --> Analyzer
+
+' Connections - Config from top
+Config --> Analyzer : configuração
+
+' Connections - Methods from bottom
+Methods --> Analyzer : análise
+
+' Connections - Outputs to right
+Analyzer --> NumTraces
+Analyzer --> NumEvents
+Analyzer --> UniqueActivities
+Analyzer --> UniqueResources
+Analyzer --> Variants
+Analyzer --> ActivityNames
+Analyzer --> TimestampCols
+Analyzer --> ResourceCols
+Analyzer --> Compatibility
+Analyzer --> TimeStats
+
+' Annotations
+note right of Analyzer
+  Primeira etapa do pipeline:
+  - Detecção automática de estrutura
+  - Identificação de variantes
+  - Validação de compatibilidade
+  - Estatísticas descritivas
+end note
+
+note bottom of Methods
+  Utiliza pm4py para análise
+  padrão de event logs XES
+end note
+
+@enduml

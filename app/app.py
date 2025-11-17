@@ -1670,6 +1670,13 @@ def main():
         st.header("Indicadores ORE")
         st.caption("Operating Room Effectiveness - Indicadores de Efetividade de Sala Cirúrgica")
 
+        # Info about enriched XES
+        st.info("""
+        💡 **Usando XES Enriquecido**: Este módulo agora suporta arquivos XES enriquecidos com dados operacionais
+        (status de cirurgia, durações reais, motivos de cancelamento). Para melhor precisão nos cálculos de ORE,
+        converta seu arquivo Excel usando: `uv run python converters/convert_xlsx_to_xes.py seu_arquivo.xlsx saida.xes`
+        """)
+
         with st.expander("ℹ️ Sobre os Indicadores ORE"):
             st.write("""
             Os **Indicadores ORE (Operating Room Effectiveness)** são baseados na metodologia Lean Healthcare

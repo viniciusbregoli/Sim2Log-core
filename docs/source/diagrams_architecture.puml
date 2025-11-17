@@ -1,0 +1,90 @@
+@startuml architecture_overview
+!theme plain
+skinparam defaultTextAlignment center
+
+title Figura 1 - Arquitetura Geral Sim2Log - Fluxo de Dados Completo
+
+' Input
+storage "Event Log\n(XES)" as Input #LightGray
+
+' Module 1
+rectangle "**1. LogAnalyzer**\nAnálise e Perfil" as Analyzer #LightBlue {
+    component "Detecção de Activities" as DetAct
+    component "Análise de Variantes" as DetVar
+    component "Validação de Formato" as ValFormat
+}
+
+' Module 2
+rectangle "**2. ProcessMiner**\nDescoberta de Modelo" as Miner #LightCoral {
+    component "Inductive Miner" as IM
+    component "Métricas de Qualidade" as Quality
+    component "Análise Estatística" as Stats
+}
+
+' Module 3
+rectangle "**3. LogSimulator**\nSimulação" as Simulator #LightGreen {
+    component "SimPy DES" as SimPy
+    component "Replay de Árvore" as Replay
+    component "Geração de Eventos" as GenEvents
+}
+
+' Module 4
+rectangle "**4. LogValidator**\nValidação" as Validator #LightYellow {
+    component "Comparação Estatística" as StatComp
+    component "KS Test" as KS
+    component "Cálculo de Similaridade" as Sim
+}
+
+' Module 5
+rectangle "**5. ORECalculator**\nIndicadores" as ORE #LightPink {
+    component "Disponibilidade" as Avail
+    component "Performance" as Perf
+    component "Qualidade" as Qual
+}
+
+' Intermediate data
+storage "Perfil do Log" as Profile #WhiteSmoke
+storage "Modelo de Processo\n(Petri Net + Tree)" as Model #WhiteSmoke
+storage "Log Sintético\n(XES)" as Synthetic #WhiteSmoke
+storage "Relatório de\nValidação" as ValidationReport #WhiteSmoke
+storage "Métricas ORE" as OREMetrics #WhiteSmoke
+
+' Flow connections
+Input --> Analyzer : entrada
+Analyzer --> Profile : perfil
+Profile --> Miner
+Input --> Miner : log original
+Miner --> Model : modelo descoberto
+Model --> Simulator
+Simulator --> Synthetic : log sintético
+Input --> Validator : log original
+Synthetic --> Validator : log sintético
+Validator --> ValidationReport : validação
+Input --> ORE : log enriquecido
+ORE --> OREMetrics : indicadores
+
+' Pipeline orchestration
+package "ProcessMiningPipeline" as Pipeline #LightSteelBlue {
+    note as N1
+        Orquestra todos os módulos
+        em um fluxo unificado
+    end note
+}
+
+Pipeline .> Analyzer : usa
+Pipeline .> Miner : usa
+Pipeline .> Simulator : usa
+Pipeline .> Validator : usa
+Pipeline .> ORE : usa
+
+' Legend
+legend right
+    |= Módulo |= Função |
+    | LogAnalyzer | Análise de características do log |
+    | ProcessMiner | Descoberta de modelo com IM |
+    | LogSimulator | Geração de log sintético (SimPy) |
+    | LogValidator | Validação estatística |
+    | ORECalculator | Cálculo de efetividade |
+endlegend
+
+@enduml

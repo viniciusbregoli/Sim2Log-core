@@ -1,0 +1,74 @@
+@startuml process_miner_component_diagram
+!theme plain
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Figura 4 - ProcessMiner - Descoberta de Modelo
+
+' Central component
+rectangle "**ProcessMiner**\nDescoberta de Modelo" as Miner #LightBlue {
+}
+
+' Input data - Left side
+component "Event Log (XES)" as EventLog
+component "Traces" as Traces
+component "Activities" as Activities
+component "Timestamps" as Timestamps
+component "Resources" as Resources
+component "Variantes" as Variants
+
+' Configuration - Top
+rectangle "Configuração" as Config #LightYellow {
+    component "Filtro de Variantes" as VariantFilter
+    component "Auto-detecção" as AutoDetect
+    component "Parâmetros IM" as IMParams
+}
+
+' Algorithms - Bottom
+rectangle "Algoritmos" as Algorithms #LightGreen {
+    component "Inductive Miner" as IM
+    component "pm4py" as PM4PY
+    component "Análise Estatística" as Stats
+}
+
+' Outputs - Right side
+rectangle "Modelo de Processo" as Output #LightPink {
+    component "Rede de Petri" as PetriNet
+    component "Árvore de Processos" as ProcessTree
+    component "Marcações Inicial/Final" as Markings
+    component "Distribuições de Duração" as Durations
+    component "Taxa de Chegada" as ArrivalRate
+    component "Métricas de Qualidade\n(Fitness, Precision, Simplicity)" as Metrics
+}
+
+' Connections - Inputs from left
+EventLog --> Miner
+Traces --> Miner
+Activities --> Miner
+Timestamps --> Miner
+Resources --> Miner
+Variants --> Miner
+
+' Connections - Config from top
+Config --> Miner : configuração
+
+' Connections - Algorithms from bottom
+Algorithms --> Miner : algoritmos
+
+' Connections - Outputs to right
+Miner --> PetriNet
+Miner --> ProcessTree
+Miner --> Markings
+Miner --> Durations
+Miner --> ArrivalRate
+Miner --> Metrics
+
+' Annotations
+note right of Miner
+  Algoritmo Inductive Miner:
+  - Garantia de soundness
+  - Suporte a ruído
+  - Geração de métricas de qualidade
+end note
+
+@enduml

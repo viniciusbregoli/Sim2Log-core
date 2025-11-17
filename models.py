@@ -116,16 +116,16 @@ class SimulationResult:
 @dataclass
 class ValidationResult:
     """Resultado da validação."""
-    
+
     fitness: float
     """Fitness médio (0-1, quanto maior melhor)."""
-    
+
     cost: float
     """Custo médio de alinhamento (quanto menor melhor)."""
-    
+
     similarity_percentage: float
     """Percentual de similaridade."""
-    
+
     details: Dict = field(default_factory=dict)
     """Detalhes adicionais da validação."""
 

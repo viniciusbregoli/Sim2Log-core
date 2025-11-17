@@ -1,0 +1,79 @@
+@startuml simulator_component_diagram
+!theme plain
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Figura 5 - LogSimulator - Simulação Computacional
+
+' Central component (main focus, similar to the reference image)
+rectangle "**LogSimulator**\nSimulação Computacional" as Simulator #LightBlue {
+}
+
+' Input data - Left side (process model components)
+component "Modelo de Processo" as ProcessModel
+component "Árvore de Processos" as ProcessTree
+component "Activities" as Activities
+component "Distribuições de Tempo" as TimeDist
+component "Taxa de Chegada" as ArrivalRate
+component "Estado Corrente" as CurrentState
+component "Estatísticas" as Statistics
+component "Recursos Disponíveis" as Resources
+
+' Simulation engines - Bottom
+rectangle "Motores de Simulação" as Engines #LightGreen {
+    component "SimPy" as SimPy
+    component "Discrete Event Simulation" as DES
+    component "Geradores de Distribuição" as DistGen
+}
+
+' Configuration and validation - Top
+rectangle "Configuração e Validação" as ConfigVal #LightYellow {
+    component "Número de Casos" as NumCases
+    component "Seed Aleatória" as RandomSeed
+    component "Verificação de Modelo" as Verification
+    component "Indicadores" as Indicators
+}
+
+' Outputs - Right side
+rectangle "Log Sintético" as Output #LightPink {
+    component "Event Log (XES)" as XESOutput
+    component "Event Log (CSV)" as CSVOutput
+    component "Traces Gerados" as Traces
+    component "Timestamps" as Timestamps
+    component "Estatísticas de Execução" as ExecStats
+}
+
+' Connections - Inputs from left
+ProcessModel --> Simulator
+ProcessTree --> Simulator
+Activities --> Simulator
+TimeDist --> Simulator
+ArrivalRate --> Simulator
+CurrentState --> Simulator
+Statistics --> Simulator
+Resources --> Simulator
+
+' Connections - Engines from bottom
+Engines --> Simulator : motores
+
+' Connections - Config from top
+ConfigVal --> Simulator : configuração
+
+' Connections - Outputs to right
+Simulator --> Output : log sintético
+
+' Detailed annotations
+note right of Simulator
+  Simulação por eventos discretos:
+  - Replay de árvore de processos
+  - Amostragem de distribuições
+  - Alocação de recursos
+  - Geração de timestamps realísticos
+end note
+
+note bottom of Engines
+  SimPy: Framework Python para
+  simulação de eventos discretos
+end note
+
+@enduml

@@ -36,6 +36,13 @@ def create_xes_structure():
         'uri': 'http://www.xes-standard.org/org.xesext'
     })
 
+    # Add custom extension for surgical operational data
+    ET.SubElement(log, 'extension', {
+        'name': 'Surgical',
+        'prefix': 'surgery',
+        'uri': 'http://custom.org/surgery.xesext'
+    })
+
     # Add classifier
     ET.SubElement(log, 'classifier', {
         'name': 'Activity',
@@ -85,6 +92,48 @@ def parse_timestamp(date_val, time_val=None, allow_midnight=False):
         if allow_midnight:
             return f"{date_str}T00:00:00"
         return None
+
+
+def add_trace_operational_attributes(trace, row):
+    """Add operational attributes to trace for ORE calculation"""
+
+    # Surgery status
+    if 'DS_STATUS_CIRURGIA' in row and not pd.isna(row['DS_STATUS_CIRURGIA']):
+        ET.SubElement(trace, 'string', {
+            'key': 'surgery:status',
+            'value': str(row['DS_STATUS_CIRURGIA']).strip()
+        })
+
+    # Actual duration in minutes
+    if 'NR_MIN_DURACAO_REAL' in row and not pd.isna(row['NR_MIN_DURACAO_REAL']):
+        ET.SubElement(trace, 'float', {
+            'key': 'surgery:duration_real_minutes',
+            'value': str(float(row['NR_MIN_DURACAO_REAL']))
+        })
+
+    # Cancellation reason
+    if 'DS_MOTIVO_CANCEL' in row and not pd.isna(row['DS_MOTIVO_CANCEL']):
+        ET.SubElement(trace, 'string', {
+            'key': 'surgery:cancellation_reason',
+            'value': str(row['DS_MOTIVO_CANCEL']).strip()
+        })
+
+    # Scheduled date
+    if 'DT_AGENDAMENTO' in row and not pd.isna(row['DT_AGENDAMENTO']):
+        scheduled_date = row['DT_AGENDAMENTO']
+        if isinstance(scheduled_date, str):
+            ET.SubElement(trace, 'string', {
+                'key': 'surgery:scheduled_date',
+                'value': scheduled_date
+            })
+        else:
+            ET.SubElement(trace, 'date', {
+                'key': 'surgery:scheduled_date',
+                'value': scheduled_date.strftime('%Y-%m-%dT%H:%M:%S')
+            })
+
+    # Note: Scheduled duration (NR_MIN_DURACAO_PREV) does not exist in this Excel file
+    # Time variation cannot be calculated without scheduled duration
 
 
 def create_event(concept_name, timestamp, resource, sala, procedimento, index):
@@ -175,6 +224,9 @@ def convert_xlsx_to_xes(xlsx_path, xes_path):
             'value': case_id
         })
 
+        # Add operational attributes to trace for ORE calculation
+        add_trace_operational_attributes(trace, row)
+
         # Coletar eventos com timestamps válidos
         events_with_timestamps = []
 
@@ -195,9 +247,30 @@ def convert_xlsx_to_xes(xlsx_path, xes_path):
                 else:
                     skipped_events += 1
 
-        # Pular traces vazios (casos cancelados ou sem dados)
+        # Handle cancelled surgeries with no timestamps
         if len(events_with_timestamps) == 0:
-            log.remove(trace)
+            # Check if it's a cancelled surgery
+            if 'DS_STATUS_CIRURGIA' in row and row['DS_STATUS_CIRURGIA'] == 'Cancelada':
+                # Create a cancellation event using scheduled date
+                if 'DT_AGENDAMENTO' in row and not pd.isna(row['DT_AGENDAMENTO']):
+                    timestamp = parse_timestamp(row['DT_AGENDAMENTO'], None, allow_midnight=True)
+                    if timestamp:
+                        event = create_event(
+                            'Cirurgia Cancelada',
+                            timestamp,
+                            resource,
+                            sala,
+                            procedimento,
+                            0
+                        )
+                        trace.append(event)
+                    else:
+                        log.remove(trace)
+                else:
+                    log.remove(trace)
+            else:
+                # Empty trace with no timestamps and not cancelled
+                log.remove(trace)
             continue
 
         # Ordenar eventos por timestamp
@@ -215,17 +288,35 @@ def convert_xlsx_to_xes(xlsx_path, xes_path):
             )
             trace.append(event)
 
+    # Count traces with operational data
+    traces_with_status = sum(1 for trace in log.findall('trace')
+                             if trace.find(".//string[@key='surgery:status']") is not None)
+    traces_with_duration = sum(1 for trace in log.findall('trace')
+                               if trace.find(".//float[@key='surgery:duration_real_minutes']") is not None)
+    traces_with_cancellation = sum(1 for trace in log.findall('trace')
+                                   if trace.find(".//string[@key='surgery:cancellation_reason']") is not None)
+    traces_cancelled = sum(1 for trace in log.findall('trace')
+                           if trace.find(".//string[@key='surgery:status']") is not None and
+                           trace.find(".//string[@key='surgery:status']").get('value') == 'Cancelada')
+
     # Write XES file with pretty formatting
     print(f"Writing {xes_path}...")
-    print(f"Total events created: {total_events}")
-    print(f"Events skipped (missing timestamps): {skipped_events}")
+    print(f"\nConversion Summary:")
+    print(f"  Total traces: {len(log.findall('trace'))}")
+    print(f"  Total events: {total_events}")
+    print(f"  Events skipped (missing timestamps): {skipped_events}")
+    print(f"\nOperational Data Coverage:")
+    print(f"  Traces with status: {traces_with_status}")
+    print(f"  Traces with actual duration: {traces_with_duration}")
+    print(f"  Traces cancelled: {traces_cancelled}")
+    print(f"  Traces with cancellation reason: {traces_with_cancellation}")
 
     xml_str = minidom.parseString(ET.tostring(log, encoding='utf-8')).toprettyxml(indent="\t")
 
     with open(xes_path, 'w', encoding='utf-8') as f:
         f.write(xml_str)
 
-    print(f"Conversion complete! Generated {xes_path}")
+    print(f"\nConversion complete! Generated {xes_path}")
 
 
 if __name__ == '__main__':

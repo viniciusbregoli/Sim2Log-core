@@ -157,8 +157,7 @@ class ProcessMiner:
         
         # Descobre rede de Petri
         self._log("Descobrindo modelo de processo (Inductive Miner)...")
-        from pm4py.algo.discovery.inductive import algorithm as inductive_miner
-        net, im, fm = inductive_miner.apply(filtered_log)
+        net, im, fm = pm4py.discover_petri_net_inductive(filtered_log)
 
         # Descobre Process Tree
         self._log("Descobrindo Process Tree...")
@@ -221,17 +220,35 @@ class ProcessMiner:
     
     def _evaluate_model(self, log, net, im, fm) -> Dict[str, float]:
         """Avalia qualidade do modelo descoberto."""
+        # Fitness - tenta múltiplas abordagens
+        fitness = 0.0
         try:
             from pm4py.algo.evaluation.replay_fitness import evaluator as replay_fitness_evaluator
             fitness_result = replay_fitness_evaluator.apply(
                 log, net, im, fm,
                 variant=replay_fitness_evaluator.Variants.ALIGNMENT_BASED
             )
-            fitness = round(fitness_result.get('averageFitness', 0.0), 3)
+            fitness = round(fitness_result.get('averageFitness', fitness_result.get('average_trace_fitness', 0.0)), 3)
         except Exception as e:
-            self._log(f"AVISO: Não foi possível calcular fitness: {e}")
-            fitness = 0.0
-        
+            # Tenta método alternativo: token replay
+            try:
+                from pm4py.algo.evaluation.replay_fitness import evaluator as replay_fitness_evaluator
+                fitness_result = replay_fitness_evaluator.apply(
+                    log, net, im, fm,
+                    variant=replay_fitness_evaluator.Variants.TOKEN_BASED
+                )
+                fitness = round(fitness_result.get('log_fitness', fitness_result.get('average_trace_fitness', 0.0)), 3)
+            except Exception as e2:
+                # Último fallback: usa pm4py.fitness_token_based_replay direto
+                try:
+                    fitness_result = pm4py.fitness_token_based_replay(log, net, im, fm)
+                    fitness = round(fitness_result.get('log_fitness', fitness_result.get('average_trace_fitness', 0.0)), 3)
+                except Exception as e3:
+                    print(f"[ProcessMiner] AVISO: Fitness não calculado. Erros: {e}, {e2}, {e3}")
+                    fitness = 0.0
+
+        # Precision - tenta múltiplas abordagens
+        precision = 0.0
         try:
             from pm4py.algo.evaluation.precision import evaluator as precision_evaluator
             precision = round(precision_evaluator.apply(
@@ -239,16 +256,43 @@ class ProcessMiner:
                 variant=precision_evaluator.Variants.ETCONFORMANCE_TOKEN
             ), 3)
         except Exception as e:
-            self._log(f"AVISO: Não foi possível calcular precision: {e}")
-            precision = 0.0
-        
+            # Tenta método alternativo
+            try:
+                from pm4py.algo.evaluation.precision import evaluator as precision_evaluator
+                precision = round(precision_evaluator.apply(
+                    log, net, im, fm,
+                    variant=precision_evaluator.Variants.ALIGN_ETCONFORMANCE
+                ), 3)
+            except Exception as e2:
+                # Último fallback: usa pm4py.precision_token_based_replay direto
+                try:
+                    precision = round(pm4py.precision_token_based_replay(log, net, im, fm), 3)
+                except Exception as e3:
+                    print(f"[ProcessMiner] AVISO: Precision não calculado. Erros: {e}, {e2}, {e3}")
+                    precision = 0.0
+
+        # Simplicity
+        simplicity = 0.0
         try:
             from pm4py.algo.evaluation.simplicity import evaluator as simplicity_evaluator
             simplicity = round(simplicity_evaluator.apply(net), 3)
         except Exception as e:
-            self._log(f"AVISO: Não foi possível calcular simplicity: {e}")
-            simplicity = 0.0
-        
+            # Fallback: calcula simplicity manualmente
+            try:
+                num_places = len(net.places)
+                num_transitions = len(net.transitions)
+                num_arcs = len(net.arcs)
+
+                if num_places + num_transitions > 0:
+                    # Fórmula simples: 1 / (1 + complexity)
+                    complexity = num_arcs / (num_places + num_transitions)
+                    simplicity = round(1.0 / (1.0 + complexity), 3)
+                else:
+                    simplicity = 0.0
+            except Exception as e2:
+                print(f"[ProcessMiner] AVISO: Simplicity não calculado. Erros: {e}, {e2}")
+                simplicity = 0.0
+
         return {
             'fitness': fitness,
             'precision': precision,

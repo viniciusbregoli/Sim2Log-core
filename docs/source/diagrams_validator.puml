@@ -1,0 +1,77 @@
+@startuml validator_component_diagram
+!theme plain
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Figura 6 - LogValidator - Comparação e Validação
+
+' Central component
+rectangle "**LogValidator**\nComparação de Logs" as Validator #LightBlue {
+}
+
+' Input logs - Left side
+rectangle "Logs para Comparação" as InputLogs #LightGray {
+    component "Log Original (XES)" as OriginalLog
+    component "Log Sintético (XES)" as SyntheticLog
+}
+
+' Extracted features - Left side (below logs)
+component "Distribuição de Activities" as ActDist
+component "Distribuição de Variantes" as VarDist
+component "Distribuição de Durações" as DurDist
+component "Sequências de Eventos" as EventSeq
+
+' Statistical methods - Bottom
+rectangle "Métodos Estatísticos" as Methods #LightGreen {
+    component "Kolmogorov-Smirnov Test" as KSTest
+    component "Comparação de Distribuições" as DistComp
+    component "Análise de Similaridade" as SimAnalysis
+}
+
+' Configuration - Top
+rectangle "Configuração" as Config #LightYellow {
+    component "Métricas de Comparação" as Metrics
+    component "Thresholds" as Thresholds
+    component "Nível de Detalhamento" as DetailLevel
+}
+
+' Outputs - Right side
+rectangle "Relatório de Validação" as Output #LightPink {
+    component "Percentual de Similaridade" as Similarity
+    component "Comparação de Activities" as ActComp
+    component "Comparação de Variantes" as VarComp
+    component "Comparação de Durações" as DurComp
+    component "Estatísticas KS" as KSStats
+    component "Diagnóstico Detalhado" as Diagnostic
+}
+
+' Connections - Inputs from left
+InputLogs --> Validator
+ActDist --> Validator
+VarDist --> Validator
+DurDist --> Validator
+EventSeq --> Validator
+
+' Connections - Methods from bottom
+Methods --> Validator : análise
+
+' Connections - Config from top
+Config --> Validator : configuração
+
+' Connections - Outputs to right
+Validator --> Output : relatório
+
+' Annotations
+note right of Validator
+  Validação estatística:
+  - Compara distribuições originais vs sintéticas
+  - Teste KS para significância estatística
+  - Métricas de similaridade agregadas
+end note
+
+note bottom of Methods
+  KS Test: Teste não-paramétrico
+  para comparar distribuições
+end note
+
+@enduml
