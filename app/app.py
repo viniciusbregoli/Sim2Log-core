@@ -28,7 +28,7 @@ from ore_indicators import ORECalculator, OREMetrics, calculate_ore_scenarios
 # Configuração da página
 st.set_page_config(
     page_title="Process Mining",
-    page_icon="📊",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -326,11 +326,11 @@ def display_log_profile(profile, log_path=None):
     # Análise de Carga de Trabalho dos Recursos
     if log_path and profile.has_resources:
         st.write("---")
-        st.subheader("📊 Análise de Carga de Trabalho dos Recursos")
+        st.subheader("Análise de Carga de Trabalho dos Recursos")
 
         # Aviso de filtro de datas ativo
         if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
-            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+            st.info(f"Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
 
         with st.spinner("Analisando carga de trabalho dos recursos..."):
             workload = analyze_resource_workload(log_path)
@@ -350,10 +350,10 @@ def display_log_profile(profile, log_path=None):
             
             # Tabs para diferentes visualizações
             tab1, tab2, tab3, tab4 = st.tabs([
-                "📈 Ranking Geral",
-                "⚖️ Distribuição de Carga",
-                "🎯 Por Atividade",
-                "🔍 Detalhes"
+                "Ranking Geral",
+                "Distribuição de Carga",
+                "Por Atividade",
+                "Detalhes"
             ])
             
             with tab1:
@@ -389,7 +389,7 @@ def display_log_profile(profile, log_path=None):
                 with col1:
                     st.write("**Categorias de Carga:**")
                     categories = pd.DataFrame({
-                        'Categoria': ['🔴 Sobrecarregados', '🟡 Carga Alta', '🟢 Carga Normal', '⚪ Carga Baixa'],
+                        'Categoria': ['Sobrecarregados', 'Carga Alta', 'Carga Normal', 'Carga Baixa'],
                         'Quantidade': [len(overloaded), len(high_load), len(normal_load), len(low_load)],
                         'Critério': [
                             f'> {mean_events*1.5:.0f} eventos',
@@ -411,7 +411,7 @@ def display_log_profile(profile, log_path=None):
                 
                 # Alerta para recursos sobrecarregados
                 if len(overloaded) > 0:
-                    st.warning(f"⚠️ {len(overloaded)} recurso(s) sobrecarregado(s) detectado(s)!")
+                    st.warning(f"{len(overloaded)} recurso(s) sobrecarregado(s) detectado(s)!")
                     with st.expander("Ver recursos sobrecarregados"):
                         for resource, count in overloaded.items():
                             st.write(f"- **{resource}**: {count} eventos ({(count/profile.num_events)*100:.1f}% do total)")
@@ -550,7 +550,7 @@ def display_mining_results(model, model_image_path):
                 st.image(tree_image, caption="Process Tree", use_container_width=True)
 
                 # Explica a notação
-                with st.expander("ℹ️ Entendendo a Process Tree"):
+                with st.expander("Entendendo a Process Tree"):
                     st.write("""
                     **Operadores:**
                     - **→ (seq)**: Sequência - atividades executadas em ordem
@@ -607,7 +607,7 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
         st.metric("Tempo de Simulação", f"{result.simulation_time:.2f}s")
     with col4:
         # Botão para salvar simulação para comparação
-        if st.button("💾 Salvar para Comparar", use_container_width=True):
+        if st.button("Salvar para Comparar", use_container_width=True):
             df = pd.read_csv(result.csv_path)
             
             simulation_data = {
@@ -625,7 +625,7 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
     
     # Exibe comparação de recursos se foram modificados
     if custom_resources and original_model:
-        with st.expander("📊 Comparação de Recursos (Original vs Customizado)"):
+        with st.expander("Comparação de Recursos (Original vs Customizado)"):
             changes_found = False
             for activity in sorted(custom_resources.keys()):
                 original = original_model.resources.get(activity, [])
@@ -696,11 +696,11 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
     # Análise de Carga de Trabalho dos Recursos Simulados
     if result.xes_path.exists() and 'resource' in df.columns and not df['resource'].isna().all():
         st.write("---")
-        st.subheader("📊 Análise de Carga de Trabalho (Log Sintético)")
+        st.subheader("Análise de Carga de Trabalho (Log Sintético)")
 
         # Aviso de filtro de datas ativo
         if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
-            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+            st.info(f"Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
 
         with st.spinner("Analisando distribuição de recursos na simulação..."):
             workload = analyze_resource_workload(result.xes_path)
@@ -720,10 +720,10 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
             
             # Tabs para visualizações
             tab1, tab2, tab3, tab4 = st.tabs([
-                "📊 Distribuição",
-                "🎯 Por Atividade",
-                "⚖️ Balanceamento",
-                "🔍 Busca Detalhada"
+                "Distribuição",
+                "Por Atividade",
+                "Balanceamento",
+                "Busca Detalhada"
             ])
             
             with tab1:
@@ -786,11 +786,11 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
                     # Interpretação
                     cv = (std_events/mean_events)*100
                     if cv < 20:
-                        st.success("✓ Carga bem balanceada (CV < 20%)")
+                        st.success("Carga bem balanceada (CV < 20%)")
                     elif cv < 40:
                         st.info("Carga moderadamente balanceada (CV 20-40%)")
                     else:
-                        st.warning("⚠️ Carga desbalanceada (CV > 40%)")
+                        st.warning("Carga desbalanceada (CV > 40%)")
                 
                 with col2:
                     st.write("**Distribuição:**")
@@ -837,11 +837,11 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
                     
                     if abs(diff) > avg_events_all * 0.2:  # Mais de 20% de diferença
                         if diff > 0:
-                            st.warning(f"⚠️ Este recurso está {diff:.0f} eventos acima da média ({avg_events_all:.1f})")
+                            st.warning(f"Este recurso está {diff:.0f} eventos acima da média ({avg_events_all:.1f})")
                         else:
-                            st.info(f"ℹ️ Este recurso está {abs(diff):.0f} eventos abaixo da média ({avg_events_all:.1f})")
+                            st.info(f"Este recurso está {abs(diff):.0f} eventos abaixo da média ({avg_events_all:.1f})")
                     else:
-                        st.success(f"✓ Este recurso está próximo da média ({avg_events_all:.1f} eventos)")
+                        st.success(f"Este recurso está próximo da média ({avg_events_all:.1f} eventos)")
                     
                     # Distribuição de atividades do recurso
                     st.write("---")
@@ -874,11 +874,11 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
                     
                     with col2:
                         if specialization > 70:
-                            st.info("🎯 Recurso altamente especializado (foca em poucas atividades)")
+                            st.info("Recurso altamente especializado (foca em poucas atividades)")
                         elif specialization > 40:
-                            st.info("⚖️ Recurso moderadamente especializado")
+                            st.info("Recurso moderadamente especializado")
                         else:
-                            st.info("🔄 Recurso generalista (executa muitas atividades diferentes)")
+                            st.info("Recurso generalista (executa muitas atividades diferentes)")
     
     # Botões de download
     st.write("**Download dos Arquivos Gerados:**")
@@ -888,7 +888,7 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
         if result.csv_path.exists():
             with open(result.csv_path, "rb") as f:
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="Download CSV",
                     data=f,
                     file_name=result.csv_path.name,
                     mime="text/csv",
@@ -899,7 +899,7 @@ def display_simulation_results(result, custom_resources=None, original_model=Non
         if result.xes_path.exists():
             with open(result.xes_path, "rb") as f:
                 st.download_button(
-                    label="📥 Download XES",
+                    label="Download XES",
                     data=f,
                     file_name=result.xes_path.name,
                     mime="application/xml",
@@ -950,7 +950,7 @@ def display_ore_results(metrics: OREMetrics):
     st.subheader("Indicadores ORE (Operating Room Effectiveness)")
 
     # Informações de debug (expander colapsado)
-    with st.expander("🔍 Detalhes do Cálculo"):
+    with st.expander("Detalhes do Cálculo"):
         st.write(f"**Dados base:**")
         st.write(f"- Cirurgias analisadas: {metrics.num_surgeries_scheduled}")
         st.write(f"- TTA (Tempo Total Disponível): {metrics.total_time_available:.1f}h")
@@ -990,13 +990,13 @@ def display_ore_results(metrics: OREMetrics):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("TTA", f"{metrics.total_time_available:.1f}h", help="Tempo Total Disponível")
+        st.metric("Tempo Total Disponível", f"{metrics.total_time_available:.1f}h", help="Tempo Total Disponível")
     with col2:
-        st.metric("TTS", f"{metrics.total_time_scheduled:.1f}h", help="Tempo Total Agendado")
+        st.metric("Tempo Total Agendado", f"{metrics.total_time_scheduled:.1f}h", help="Tempo Total Agendado")
     with col3:
-        st.metric("TTU", f"{metrics.total_time_used:.1f}h", help="Tempo Total Usado")
+        st.metric("Tempo Total Usado", f"{metrics.total_time_used:.1f}h", help="Tempo Total Usado")
     with col4:
-        st.metric("TTAV", f"{metrics.total_time_added_value:.1f}h", help="Tempo de Valor Agregado")
+        st.metric("Tempo de Valor Agregado", f"{metrics.total_time_added_value:.1f}h", help="Tempo de Valor Agregado")
 
     # Perdas por categoria
     st.write("### Perdas por Categoria")
@@ -1036,88 +1036,7 @@ def display_ore_results(metrics: OREMetrics):
         st.metric("Cirurgias Canceladas", metrics.num_surgeries_cancelled)
     with col4:
         st.metric("Taxa de Cancelamento", f"{metrics.cancellation_rate:.1f}%")
-
-    # Cenários de melhoria
-    st.write("### Cenários de Melhoria")
-    scenarios_df = calculate_ore_scenarios(metrics)
-
-    # Formata dataframe para exibição
-    display_df = scenarios_df.copy()
-    display_df['TTA'] = display_df['TTA'].apply(lambda x: f"{x:.1f}h")
-    display_df['TTS'] = display_df['TTS'].apply(lambda x: f"{x:.1f}h")
-    display_df['TTU'] = display_df['TTU'].apply(lambda x: f"{x:.1f}h")
-    display_df['TTAV'] = display_df['TTAV'].apply(lambda x: f"{x:.1f}h")
-    display_df['Availability_%'] = display_df['Availability_%'].apply(lambda x: f"{x:.1f}%")
-    display_df['Performance_%'] = display_df['Performance_%'].apply(lambda x: f"{x:.1f}%")
-    display_df['Quality_%'] = display_df['Quality_%'].apply(lambda x: f"{x:.1f}%")
-    display_df['ORE_%'] = display_df['ORE_%'].apply(lambda x: f"{x:.1f}%")
-    display_df['Variation_%'] = display_df['Variation_%'].apply(lambda x: f"+{x:.1f}%" if x > 0 else f"{x:.1f}%")
-    display_df['Additional_Hours'] = display_df['Additional_Hours'].apply(lambda x: f"+{x:.1f}h" if x > 0 else f"{x:.1f}h")
-
-    st.dataframe(display_df, use_container_width=True)
-
-    with st.expander("ℹ️ Sobre os Cenários"):
-        st.write("""
-        **Base**: Situação atual extraída do log
-
-        **Cenário A**: Eliminar tempo não agendado (scheduling = 0)
-        - Melhora o planejamento e ocupação da sala
-
-        **Cenário B**: Reduzir 5 minutos no setup entre cirurgias
-        - Otimizar processos de limpeza e preparação
-
-        **Cenário G**: Combinação de melhorias
-        - Eliminar tempo não agendado
-        - Reduzir 5 minutos no setup
-        - Reduzir 50% dos cancelamentos
-        """)
-
-    # Download dos resultados
-    st.write("### Exportar Resultados")
-
-    # Prepara dados para exportação
-    export_data = {
-        'Métrica': [
-            'ORE Total (%)', 'Disponibilidade (%)', 'Desempenho (%)', 'Qualidade (%)',
-            'TTA (h)', 'TTS (h)', 'TTU (h)', 'TTAV (h)',
-            'Perda: Falhas Equipamento (h)', 'Perda: Setup (h)', 'Perda: Não Agendamento (h)',
-            'Perda: Pequenas Paradas (h)', 'Perda: Variação Tempo (h)', 'Perda: Cancelamentos (h)',
-            'Perda: Reintervenções (h)',
-            'Cirurgias Agendadas', 'Cirurgias Realizadas', 'Cirurgias Canceladas', 'Taxa Cancelamento (%)'
-        ],
-        'Valor': [
-            metrics.ore, metrics.availability, metrics.performance, metrics.quality,
-            metrics.total_time_available, metrics.total_time_scheduled,
-            metrics.total_time_used, metrics.total_time_added_value,
-            metrics.loss_equipment_failure, metrics.loss_setup, metrics.loss_not_scheduling,
-            metrics.loss_small_shutdowns, metrics.loss_surgery_time_variation, metrics.loss_cancellations,
-            metrics.loss_reinterventions,
-            metrics.num_surgeries_scheduled, metrics.num_surgeries_completed,
-            metrics.num_surgeries_cancelled, metrics.cancellation_rate
-        ]
-    }
-
-    export_df = pd.DataFrame(export_data)
-    csv_data = export_df.to_csv(index=False).encode('utf-8')
-
-    st.download_button(
-        label="📥 Download Indicadores (CSV)",
-        data=csv_data,
-        file_name="ore_indicators.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-    # Download dos cenários
-    scenarios_csv = scenarios_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Cenários (CSV)",
-        data=scenarios_csv,
-        file_name="ore_scenarios.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
+    
 
 def main():
     """Função principal da aplicação."""
@@ -1131,32 +1050,56 @@ def main():
     with st.sidebar:
         st.header("Configurações")
         
-        # Upload de arquivo
-        uploaded_file = st.file_uploader(
-            "Upload do arquivo XES",
-            type=['xes'],
-            help="Selecione um arquivo XES para análise"
+        # Seletor de Arquivo de Demonstração
+        st.subheader("Arquivo de Demonstração")
+        
+        demo_files = {
+            "Demo": Path("/home/bregoli/Code/Sim2Log-core/bases/xes/patient_treatment.xes"),
+            "Cirurgias Marco Huc": Path("/home/bregoli/Code/Sim2Log-core/bases/xes/CirurgiasMarcoHucEnriched.xes")
+        }
+        
+        selected_demo = st.selectbox(
+            "Selecione o log para análise:",
+            options=list(demo_files.keys()),
+            index=0
         )
         
-        if uploaded_file is not None:
-            if st.session_state.uploaded_file != uploaded_file.name:
-                st.session_state.uploaded_file = uploaded_file.name
-                st.session_state.log_path = save_uploaded_file(uploaded_file)
-                st.session_state.xes_path = st.session_state.log_path
+        # Lógica de carregamento e troca de arquivo
+        selected_path = demo_files[selected_demo]
+        
+        # Se mudou o arquivo ou ainda não carregou nada
+        if st.session_state.log_path != selected_path:
+            if selected_path.exists():
+                st.session_state.uploaded_file = selected_demo
+                st.session_state.log_path = selected_path
+                st.session_state.xes_path = selected_path
+                
+                # Reset de estados
                 st.session_state.model = None
                 st.session_state.simulation_result = None
                 st.session_state.validation_result = None
                 st.session_state.log_profile = None
+                st.session_state.ore_metrics = None
+                st.session_state.saved_simulations = []
+                
+                # Extrai datas
+                min_date, max_date = extract_log_date_range(selected_path)
+                st.session_state.log_min_date = min_date
+                st.session_state.log_max_date = max_date
+                
+                st.toast(f"Carregado: {selected_demo}", icon="📂")
+                
+                # Auto-cálculo para demonstração
+                with st.spinner("Processando dados iniciais..."):
+                    analyze_log(selected_path)
+                    # Só calcula ORE se não for "Demo"
+                    if selected_demo != "Demo":
+                        calculate_ore_indicators(selected_path)
+            else:
+                st.error(f"Arquivo não encontrado: {selected_path}")
 
-                # Extrai intervalo de datas do log
-                if st.session_state.log_path:
-                    min_date, max_date = extract_log_date_range(st.session_state.log_path)
-                    st.session_state.log_min_date = min_date
-                    st.session_state.log_max_date = max_date
-
-                st.success(f"Arquivo '{uploaded_file.name}' carregado!")
-                if st.session_state.log_min_date and st.session_state.log_max_date:
-                    st.info(f"Período do log: {st.session_state.log_min_date} até {st.session_state.log_max_date}")
+        if st.session_state.log_min_date and st.session_state.log_max_date:
+            st.info(f"Período: {st.session_state.log_min_date} até {st.session_state.log_max_date}")
         
         st.divider()
         
@@ -1179,7 +1122,7 @@ def main():
             "Número de Casos",
             min_value=1,
             max_value=10000,
-            value=50,
+            value=1400,
             step=10,
             help="Quantidade de casos sintéticos a gerar"
         )
@@ -1267,7 +1210,7 @@ def main():
             all_resources = sorted(all_resources)
             
             for activity in sorted(st.session_state.model.activities.keys()):
-                with st.expander(f"📌 {activity}"):
+                with st.expander(f"{activity}"):
                     original_resources = st.session_state.model.resources.get(activity, [])
                     # Filtra apenas recursos válidos
                     original_resources = [r for r in original_resources if r and isinstance(r, str)]
@@ -1321,7 +1264,7 @@ def main():
                     
                     # Mostra resumo da atividade
                     if len(selected_resources) == 0:
-                        st.warning(f"⚠️ Nenhum recurso selecionado! Serão usados os originais na simulação.")
+                        st.warning(f"Nenhum recurso selecionado! Serão usados os originais na simulação.")
                     elif set(selected_resources) != set(original_resources):
                         st.info(f"Mudança: {len(original_resources)} → {len(selected_resources)} recursos")
             
@@ -1351,13 +1294,13 @@ def main():
                 st.metric("Recursos (Novo)", total_resources_new)
             
             if changes > 0:
-                st.success(f"✓ {changes} atividade(s) com recursos modificados")
+                st.success(f"{changes} atividade(s) com recursos modificados")
             else:
                 st.info("Nenhuma alteração nos recursos")
     
     # Área principal
     if st.session_state.log_path is None:
-        st.info("👆 Faça upload de um arquivo XES na barra lateral para começar")
+        st.info("Faça upload de um arquivo XES na barra lateral para começar")
         st.markdown("""
         ### Como usar:
         
@@ -1376,14 +1319,27 @@ def main():
         return
     
     # Tabs para organizar o conteúdo
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "1. Análise",
-        "2. Mineração",
-        "3. Simulação",
-        "4. Validação",
-        "5. Comparação",
-        "6. ORE Indicators"
-    ])
+    # Determina se deve mostrar a aba ORE (não mostrar para "Demo")
+    show_ore_tab = selected_demo != "Demo"
+    
+    if show_ore_tab:
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "1. Análise",
+            "2. Mineração",
+            "3. Simulação",
+            "4. Validação",
+            "5. Comparação",
+            "6. ORE Indicators"
+        ])
+    else:
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "1. Análise",
+            "2. Mineração",
+            "3. Simulação",
+            "4. Validação",
+            "5. Comparação"
+        ])
+        tab6 = None
     
     with tab1:
         st.header("Análise do Log")
@@ -1447,10 +1403,10 @@ def main():
 
         # Aviso de filtro de datas ativo
         if st.session_state.date_filter_enabled and st.session_state.date_filter_start and st.session_state.date_filter_end:
-            st.info(f"🗓️ Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
+            st.info(f"Filtro de datas ativo: {st.session_state.date_filter_start} até {st.session_state.date_filter_end}")
 
         if not st.session_state.log_profile:
-            st.warning("⚠️ Execute a análise do log original primeiro")
+            st.warning("Execute a análise do log original primeiro")
         elif len(st.session_state.saved_simulations) == 0:
             st.info("Nenhuma simulação salva para comparar. Execute simulações e clique em 'Salvar para Comparar'")
         else:
@@ -1468,7 +1424,7 @@ def main():
             with col2:
                 st.write("")  # Espaçamento
                 st.write("")
-                if st.button("🗑️ Limpar Simulações"):
+                if st.button("Limpar Simulações"):
                     st.session_state.saved_simulations = []
                     st.rerun()
 
@@ -1481,7 +1437,7 @@ def main():
             st.write("---")
             
             # Comparação de métricas gerais
-            st.subheader("📊 Métricas Gerais")
+            st.subheader("Métricas Gerais")
             
             col1, col2 = st.columns(2)
             
@@ -1508,7 +1464,7 @@ def main():
             
             # Comparação de atividades
             st.write("---")
-            st.subheader("🔄 Distribuição de Atividades")
+            st.subheader("Distribuição de Atividades")
             
             col1, col2 = st.columns(2)
             
@@ -1555,11 +1511,11 @@ def main():
             
             # Comparação de recursos
             st.write("---")
-            st.subheader("👥 Análise de Recursos")
+            st.subheader("Análise de Recursos")
             
             # Analisa workload do original e da simulação
             with st.spinner("Analisando recursos..."):
-                from pathlib import Path
+
                 
                 original_workload = None
                 sim_workload = None
@@ -1619,13 +1575,13 @@ def main():
                 st.write("---")
                 ratio = total_events_sim / total_events_orig if total_events_orig > 0 else 0
                 if ratio > 5:
-                    st.warning(f"⚠️ A simulação gerou {ratio:.1f}x mais eventos que o log original. Considere ajustar o número de casos simulados para uma comparação mais justa.")
+                    st.warning(f"A simulação gerou {ratio:.1f}x mais eventos que o log original. Considere ajustar o número de casos simulados para uma comparação mais justa.")
                 elif ratio < 0.2:
-                    st.warning(f"⚠️ A simulação gerou apenas {ratio:.1%} dos eventos do log original. Considere aumentar o número de casos simulados.")
+                    st.warning(f"A simulação gerou apenas {ratio:.1%} dos eventos do log original. Considere aumentar o número de casos simulados.")
                 
                 # Análise de balanceamento
                 st.write("---")
-                st.write("### ⚖️ Balanceamento de Carga")
+                st.write("### Balanceamento de Carga")
                 
                 col1, col2 = st.columns(2)
                 
@@ -1639,11 +1595,11 @@ def main():
                     st.metric("Coef. Variação", f"{orig_cv:.1f}%")
                     
                     if orig_cv < 20:
-                        st.success("✓ Bem balanceado")
+                        st.success("Bem balanceado")
                     elif orig_cv < 40:
                         st.info("Moderadamente balanceado")
                     else:
-                        st.warning("⚠️ Desbalanceado")
+                        st.warning("Desbalanceado")
                 
                 with col2:
                     st.write("**Simulação:**")
@@ -1655,61 +1611,56 @@ def main():
                     st.metric("Coef. Variação", f"{sim_cv:.1f}%")
                     
                     if sim_cv < 20:
-                        st.success("✓ Bem balanceado")
+                        st.success("Bem balanceado")
                     elif sim_cv < 40:
                         st.info("Moderadamente balanceado")
                     else:
-                        st.warning("⚠️ Desbalanceado")
+                        st.warning("Desbalanceado")
             
             elif not original_workload:
-                st.info("ℹ️ Log original não possui informações de recursos para comparar")
+                st.info("Log original não possui informações de recursos para comparar")
             elif not sim_workload:
-                st.info("ℹ️ Simulação não possui informações de recursos para comparar")
+                st.info("Simulação não possui informações de recursos para comparar")
 
-    with tab6:
-        st.header("Indicadores ORE")
-        st.caption("Operating Room Effectiveness - Indicadores de Efetividade de Sala Cirúrgica")
+    if tab6 is not None:
+        with tab6:
+            st.header("Indicadores ORE")
+            st.caption("Operating Room Effectiveness - Indicadores de Efetividade de Sala Cirúrgica")
 
-        # Info about enriched XES
-        st.info("""
-        💡 **Usando XES Enriquecido**: Este módulo agora suporta arquivos XES enriquecidos com dados operacionais
-        (status de cirurgia, durações reais, motivos de cancelamento). Para melhor precisão nos cálculos de ORE,
-        converta seu arquivo Excel usando: `uv run python converters/convert_xlsx_to_xes.py seu_arquivo.xlsx saida.xes`
-        """)
 
-        with st.expander("ℹ️ Sobre os Indicadores ORE"):
-            st.write("""
-            Os **Indicadores ORE (Operating Room Effectiveness)** são baseados na metodologia Lean Healthcare
-            e adaptados do OEE (Overall Equipment Effectiveness) da manufatura.
+            with st.expander("Sobre os Indicadores ORE"):
+                st.write("""
+                Os **Indicadores ORE (Operating Room Effectiveness)** são baseados na metodologia Lean Healthcare
+                e adaptados do OEE (Overall Equipment Effectiveness) da manufatura.
 
-            **Três pilares principais:**
+                **Três pilares principais:**
 
-            1. **Disponibilidade**: Quanto tempo agendado em relação ao tempo total disponível
-               - Perdas: Falhas de equipamento, Setup/limpeza, Não agendamento
+                1. **Disponibilidade**: Quanto tempo agendado em relação ao tempo total disponível
+                   - Perdas: Falhas de equipamento, Setup/limpeza, Não agendamento
 
-            2. **Desempenho**: Quanto tempo foi efetivamente usado em relação ao agendado
-               - Perdas: Pequenas paradas, Variação no tempo de cirurgia, Cancelamentos
+                2. **Desempenho**: Quanto tempo foi efetivamente usado em relação ao agendado
+                   - Perdas: Pequenas paradas, Variação no tempo de cirurgia, Cancelamentos
 
-            3. **Qualidade**: Quanto tempo agregou valor em relação ao tempo usado
-               - Perdas: Reintervenções
+                3. **Qualidade**: Quanto tempo agregou valor em relação ao tempo usado
+                   - Perdas: Reintervenções
 
-            **Fórmula:**
+                **Fórmula:**
 
-            ORE = Disponibilidade × Desempenho × Qualidade
+                ORE = Disponibilidade × Desempenho × Qualidade
 
-            **Referência:**
-            Souza, T. A., Vaccaro, G. L. R., & Lima, R. M. (2020).
-            Operating room effectiveness: a lean health-care performance indicator.
-            """)
+                **Referência:**
+                Souza, T. A., Vaccaro, G. L. R., & Lima, R. M. (2020).
+                Operating room effectiveness: a lean health-care performance indicator.
+                """)
 
-        if st.button("Calcular Indicadores ORE", type="primary"):
-            calculate_ore_indicators(st.session_state.log_path)
-            st.success("Indicadores ORE calculados com sucesso!")
+            if st.button("Calcular Indicadores ORE", type="primary"):
+                calculate_ore_indicators(st.session_state.log_path)
+                st.success("Indicadores ORE calculados com sucesso!")
 
-        if st.session_state.ore_metrics:
-            display_ore_results(st.session_state.ore_metrics)
-        else:
-            st.info("Clique no botão acima para calcular os indicadores ORE do log carregado")
+            if st.session_state.ore_metrics:
+                display_ore_results(st.session_state.ore_metrics)
+            else:
+                st.info("Clique no botão acima para calcular os indicadores ORE do log carregado")
 
 
 if __name__ == "__main__":
