@@ -1,6 +1,6 @@
 # Sim2Log
 
-Sim2Log takes an event log in XES format, discovers the process behind it, simulates that process to produce a synthetic log, and checks how close the synthetic log is to the original. I built it as the code for my undergraduate thesis at PUCPR, "Simulation model generator for short-term decision making using process mining" (2025). The thesis text is in [viniciusbregoli/TCC](https://github.com/viniciusbregoli/TCC) ([PDF](https://github.com/viniciusbregoli/TCC/blob/main/tcc.pdf)). The case study was a hospital's surgical scheduling, which is why the last step computes Operating Room Effectiveness (ORE) indicators.
+Sim2Log takes an event log in XES format, discovers the process behind it, simulates that process to produce a synthetic log, and checks how close the synthetic log is to the original. I built it as the code for my undergraduate thesis at PUCPR, "Simulation model generator for short-term decision-making using process mining" (2025). The thesis text is in [viniciusbregoli/TCC](https://github.com/viniciusbregoli/TCC) ([PDF](https://github.com/viniciusbregoli/TCC/blob/main/tcc.pdf)). The case study was a hospital's surgical scheduling, which is why the last step computes Operating Room Effectiveness (ORE) indicators.
 
 ## Screenshots
 
